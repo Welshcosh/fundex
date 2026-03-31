@@ -2,15 +2,86 @@
 
 import Link from "next/link";
 import { ArrowRight, Shield, Zap, TrendingUp, BarChart2, Lock, RefreshCw } from "lucide-react";
-import { MARKETS } from "@/lib/constants";
-import { formatRate, formatRateAnnualized } from "@/lib/utils";
+import { MARKETS, DurationVariant } from "@/lib/constants";
+import { formatRate, formatRateAnnualized, formatUSD } from "@/lib/utils";
+import { useMarketData } from "@/hooks/useMarketData";
 
-const STATS = [
-  { label: "Total Markets", value: "16", sub: "4 perps × 4 durations" },
-  { label: "Settlement", value: "1 min", sub: "Devnet demo mode" },
-  { label: "Max Leverage", value: "10×", sub: "10% initial margin" },
-  { label: "Network", value: "Solana", sub: "Devnet live" },
-];
+function LiveStats() {
+  const d = [
+    useMarketData(MARKETS[0], DurationVariant.Days7),
+    useMarketData(MARKETS[0], DurationVariant.Days30),
+    useMarketData(MARKETS[0], DurationVariant.Days90),
+    useMarketData(MARKETS[0], DurationVariant.Days180),
+    useMarketData(MARKETS[1], DurationVariant.Days7),
+    useMarketData(MARKETS[1], DurationVariant.Days30),
+    useMarketData(MARKETS[1], DurationVariant.Days90),
+    useMarketData(MARKETS[1], DurationVariant.Days180),
+    useMarketData(MARKETS[2], DurationVariant.Days7),
+    useMarketData(MARKETS[2], DurationVariant.Days30),
+    useMarketData(MARKETS[2], DurationVariant.Days90),
+    useMarketData(MARKETS[2], DurationVariant.Days180),
+    useMarketData(MARKETS[3], DurationVariant.Days7),
+    useMarketData(MARKETS[3], DurationVariant.Days30),
+    useMarketData(MARKETS[3], DurationVariant.Days90),
+    useMarketData(MARKETS[3], DurationVariant.Days180),
+  ];
+  const totalOI = d.reduce((s, x) => s + x.oiUsd, 0);
+  const anyLive = d.some((x) => x.live);
+
+  const STATS = [
+    { label: "Total Markets", value: "16", sub: "4 perps × 4 durations" },
+    { label: "Total Open Interest", value: anyLive ? formatUSD(totalOI) : "—", sub: anyLive ? "Live on-chain" : "Loading…" },
+    { label: "Max Leverage", value: "10×", sub: "10% initial margin" },
+    { label: "Network", value: "Solana", sub: "Devnet live" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {STATS.map((s) => (
+        <div key={s.label} className="p-5 rounded-2xl text-center"
+          style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="text-2xl font-black mb-1" style={{ color: "#ede9fe" }}>{s.value}</div>
+          <div className="text-xs font-semibold mb-0.5" style={{ color: "#c4b5fd" }}>{s.label}</div>
+          <div className="text-[11px]" style={{ color: "#4a4568" }}>{s.sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LiveMarketCard({ market }: { market: typeof MARKETS[number] }) {
+  const data = useMarketData(market, DurationVariant.Days7);
+  const rate = data.live ? data.variableRate : market.baseRate;
+  return (
+    <Link href={`/trade?perp=${market.perpIndex}&dur=1`}
+      className="group flex items-center justify-between p-5 rounded-2xl transition-all"
+      style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.05)" }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(153,69,255,0.25)")}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)")}>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold"
+          style={{ background: "linear-gradient(135deg, rgba(153,69,255,0.2), rgba(67,180,202,0.2))", color: "#c4b5fd", border: "1px solid rgba(153,69,255,0.2)" }}>
+          {market.symbol[0]}
+        </div>
+        <div>
+          <div className="font-bold text-sm" style={{ color: "#ede9fe" }}>{market.name}</div>
+          <div className="text-[11px] flex items-center gap-1" style={{ color: "#4a4568" }}>
+            {data.live && <span style={{ color: "#2dd4bf" }}>●</span>}
+            Funding Rate Swap
+          </div>
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-mono font-bold text-sm" style={{ color: "#2dd4bf" }}>
+          +{formatRate(rate)}
+        </div>
+        <div className="text-[11px] font-mono" style={{ color: "#4a4568" }}>
+          {formatRateAnnualized(rate)} APY
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 const FEATURES = [
   {
@@ -128,16 +199,7 @@ export default function LandingPage() {
 
       {/* ── Stats ────────────────────────────────────────────────── */}
       <section className="max-w-4xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {STATS.map((s) => (
-            <div key={s.label} className="p-5 rounded-2xl text-center"
-              style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="text-2xl font-black mb-1" style={{ color: "#ede9fe" }}>{s.value}</div>
-              <div className="text-xs font-semibold mb-0.5" style={{ color: "#c4b5fd" }}>{s.label}</div>
-              <div className="text-[11px]" style={{ color: "#4a4568" }}>{s.sub}</div>
-            </div>
-          ))}
-        </div>
+        <LiveStats />
       </section>
 
       {/* ── Live Markets Preview ──────────────────────────────────── */}
@@ -150,32 +212,7 @@ export default function LandingPage() {
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {MARKETS.map((m) => (
-            <Link key={m.perpIndex} href={`/trade?perp=${m.perpIndex}&dur=1`}
-              className="group flex items-center justify-between p-5 rounded-2xl transition-all"
-              style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.05)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(153,69,255,0.25)")}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)")}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold"
-                  style={{ background: "linear-gradient(135deg, rgba(153,69,255,0.2), rgba(67,180,202,0.2))", color: "#c4b5fd", border: "1px solid rgba(153,69,255,0.2)" }}>
-                  {m.symbol[0]}
-                </div>
-                <div>
-                  <div className="font-bold text-sm" style={{ color: "#ede9fe" }}>{m.name}</div>
-                  <div className="text-[11px]" style={{ color: "#4a4568" }}>Funding Rate Swap</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-mono font-bold text-sm" style={{ color: "#2dd4bf" }}>
-                  +{formatRate(m.baseRate)}
-                </div>
-                <div className="text-[11px] font-mono" style={{ color: "#4a4568" }}>
-                  {formatRateAnnualized(m.baseRate)} APY
-                </div>
-              </div>
-            </Link>
-          ))}
+          {MARKETS.map((m) => <LiveMarketCard key={m.perpIndex} market={m} />)}
         </div>
       </section>
 
