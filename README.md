@@ -4,7 +4,7 @@
 
 Fundex is a fully on-chain funding rate swap (FRS) market built on Solana. It lets traders go **long or short on perpetual funding rates** — hedging their perp positions or speculating on rate direction — across 16 markets (4 perps × 4 durations).
 
-**Live demo:** https://fundex.vercel.app *(devnet)*
+**Live demo:** https://fundex-weld.vercel.app *(devnet)*
 
 ---
 
