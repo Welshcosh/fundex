@@ -1,0 +1,1045 @@
+{
+  "address": "7UzjwBopedNuBzf5T4CYouJrGqgkQRnjtMAwjxdPFbQk",
+  "metadata": {
+    "name": "fundex",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Funding Rate Swap Market on Solana"
+  },
+  "instructions": [
+    {
+      "name": "close_position",
+      "discriminator": [
+        123,
+        134,
+        81,
+        0,
+        49,
+        68,
+        98,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_market",
+      "discriminator": [
+        35,
+        35,
+        189,
+        193,
+        155,
+        48,
+        170,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracle",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "perp_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "Token account controlled by market PDA — holds all collateral"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "perp_index",
+          "type": "u16"
+        },
+        {
+          "name": "duration_variant",
+          "type": "u8"
+        },
+        {
+          "name": "fixed_rate_override",
+          "type": {
+            "option": "i64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_rate_oracle",
+      "discriminator": [
+        255,
+        251,
+        168,
+        149,
+        221,
+        229,
+        7,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "perp_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "perp_index",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "liquidate_position",
+      "discriminator": [
+        187,
+        74,
+        229,
+        149,
+        102,
+        81,
+        221,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "liquidator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "docs": [
+            "The position being liquidated (any user)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.user",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "liquidator_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "open_position",
+      "discriminator": [
+        135,
+        128,
+        47,
+        77,
+        15,
+        152,
+        240,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": "u8"
+        },
+        {
+          "name": "lots",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_funding",
+      "discriminator": [
+        11,
+        251,
+        12,
+        161,
+        199,
+        228,
+        133,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "crank",
+          "docs": [
+            "Anyone can call — permissionless crank"
+          ],
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "oracle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.perp_index",
+                "account": "MarketState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "actual_rate",
+          "type": "i64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "MarketState",
+      "discriminator": [
+        0,
+        125,
+        123,
+        215,
+        95,
+        96,
+        164,
+        194
+      ]
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "RateOracle",
+      "discriminator": [
+        122,
+        53,
+        218,
+        216,
+        112,
+        230,
+        125,
+        96
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "FundingSettled",
+      "discriminator": [
+        250,
+        241,
+        161,
+        50,
+        159,
+        70,
+        172,
+        196
+      ]
+    },
+    {
+      "name": "MarketInitialized",
+      "discriminator": [
+        134,
+        160,
+        122,
+        87,
+        50,
+        3,
+        255,
+        81
+      ]
+    },
+    {
+      "name": "OracleInitialized",
+      "discriminator": [
+        42,
+        87,
+        109,
+        208,
+        1,
+        105,
+        101,
+        142
+      ]
+    },
+    {
+      "name": "PositionClosed",
+      "discriminator": [
+        157,
+        163,
+        227,
+        228,
+        13,
+        97,
+        138,
+        121
+      ]
+    },
+    {
+      "name": "PositionLiquidated",
+      "discriminator": [
+        40,
+        107,
+        90,
+        214,
+        96,
+        30,
+        61,
+        128
+      ]
+    },
+    {
+      "name": "PositionOpened",
+      "discriminator": [
+        237,
+        175,
+        243,
+        230,
+        147,
+        117,
+        101,
+        121
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "OracleNotReady",
+      "msg": "Oracle not warmed up — need at least MIN_ORACLE_SAMPLES settlements"
+    },
+    {
+      "code": 6001,
+      "name": "MarketExpired",
+      "msg": "Market has already expired"
+    },
+    {
+      "code": 6002,
+      "name": "MarketNotExpired",
+      "msg": "Market has not expired yet"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidDuration",
+      "msg": "Invalid duration: must be 0=7d, 1=30d, 2=90d, 3=180d"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidSide",
+      "msg": "Invalid side: must be 0=FixedPayer, 1=FixedReceiver"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidLots",
+      "msg": "Lots must be greater than zero"
+    },
+    {
+      "code": 6006,
+      "name": "TooEarlyToSettle",
+      "msg": "Too early to settle — funding interval not elapsed"
+    },
+    {
+      "code": 6007,
+      "name": "PositionAboveMaintenanceMargin",
+      "msg": "Position is above maintenance margin — cannot liquidate"
+    },
+    {
+      "code": 6008,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6009,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientVaultBalance",
+      "msg": "Insufficient vault balance to pay out"
+    },
+    {
+      "code": 6011,
+      "name": "FixedRateOutOfBounds",
+      "msg": "Fixed rate override exceeds allowed bounds"
+    },
+    {
+      "code": 6012,
+      "name": "MarketInactive",
+      "msg": "Market is not active"
+    }
+  ],
+  "types": [
+    {
+      "name": "FundingSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "actual_rate",
+            "type": "i64"
+          },
+          {
+            "name": "fixed_rate",
+            "type": "i64"
+          },
+          {
+            "name": "delta",
+            "type": "i64"
+          },
+          {
+            "name": "new_cumulative_rate_index",
+            "type": "i64"
+          },
+          {
+            "name": "new_oracle_ema",
+            "type": "i64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "perp_index",
+            "type": "u16"
+          },
+          {
+            "name": "duration_variant",
+            "type": "u8"
+          },
+          {
+            "name": "fixed_rate",
+            "type": "i64"
+          },
+          {
+            "name": "expiry_ts",
+            "type": "i64"
+          },
+          {
+            "name": "notional_per_lot",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "perp_index",
+            "type": "u16"
+          },
+          {
+            "name": "duration_variant",
+            "type": "u8"
+          },
+          {
+            "name": "fixed_rate",
+            "type": "i64"
+          },
+          {
+            "name": "notional_per_lot",
+            "type": "u64"
+          },
+          {
+            "name": "expiry_ts",
+            "type": "i64"
+          },
+          {
+            "name": "collateral_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cumulative_rate_index",
+            "type": "i64"
+          },
+          {
+            "name": "last_settled_ts",
+            "type": "i64"
+          },
+          {
+            "name": "total_fixed_payer_lots",
+            "type": "u64"
+          },
+          {
+            "name": "total_fixed_receiver_lots",
+            "type": "u64"
+          },
+          {
+            "name": "total_collateral",
+            "type": "u64"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "perp_index",
+            "type": "u16"
+          },
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "lots",
+            "type": "u64"
+          },
+          {
+            "name": "collateral_deposited",
+            "type": "u64"
+          },
+          {
+            "name": "entry_rate_index",
+            "type": "i64"
+          },
+          {
+            "name": "open_ts",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "lots",
+            "type": "u64"
+          },
+          {
+            "name": "collateral_deposited",
+            "type": "u64"
+          },
+          {
+            "name": "unrealized_pnl",
+            "type": "i64"
+          },
+          {
+            "name": "payout",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionLiquidated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "liquidator",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_deposited",
+            "type": "u64"
+          },
+          {
+            "name": "unrealized_pnl",
+            "type": "i64"
+          },
+          {
+            "name": "liquidator_reward",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "lots",
+            "type": "u64"
+          },
+          {
+            "name": "collateral_deposited",
+            "type": "u64"
+          },
+          {
+            "name": "entry_rate_index",
+            "type": "i64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RateOracle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "perp_index",
+            "type": "u16"
+          },
+          {
+            "name": "ema_funding_rate",
+            "type": "i64"
+          },
+          {
+            "name": "last_update_ts",
+            "type": "i64"
+          },
+          {
+            "name": "num_samples",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
