@@ -165,7 +165,7 @@ function SummaryStats() {
 export default function MarketsPage() {
   return (
     <div style={{ minHeight: "calc(100vh - 56px)", background: "#08090e" }}>
-      <div className="max-w-5xl mx-auto px-8 py-12">
+      <div className="max-w-6xl mx-auto px-8 py-12">
 
         {/* Page header */}
         <div className="mb-10">

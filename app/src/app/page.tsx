@@ -150,7 +150,7 @@ export default function LandingPage() {
     <div style={{ background: "#08090e", minHeight: "100vh" }}>
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
-      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-32 pb-24 overflow-hidden">
+      <section className="relative flex flex-col items-center justify-center text-center px-6 pt-40 pb-28 overflow-hidden">
         {/* Glow bg */}
         <div className="absolute inset-0 pointer-events-none" style={{
           background: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(153,69,255,0.12) 0%, transparent 70%)",
@@ -198,12 +198,12 @@ export default function LandingPage() {
       </section>
 
       {/* ── Stats ────────────────────────────────────────────────── */}
-      <section className="max-w-4xl mx-auto px-6 pb-20">
+      <section className="w-full max-w-6xl mx-auto px-8 pb-24">
         <LiveStats />
       </section>
 
       {/* ── Live Markets Preview ──────────────────────────────────── */}
-      <section className="max-w-4xl mx-auto px-6 pb-24">
+      <section className="w-full max-w-6xl mx-auto px-8 pb-28">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold" style={{ color: "#ede9fe" }}>Live Markets</h2>
           <Link href="/markets" className="text-xs font-medium flex items-center gap-1 transition-opacity hover:opacity-70"
@@ -217,7 +217,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── How It Works ─────────────────────────────────────────── */}
-      <section className="max-w-4xl mx-auto px-6 pb-24">
+      <section className="w-full max-w-6xl mx-auto px-8 pb-28">
         <h2 className="text-xl font-bold mb-8 text-center" style={{ color: "#ede9fe" }}>How It Works</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {HOW_IT_WORKS.map((h) => (
@@ -232,7 +232,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features ─────────────────────────────────────────────── */}
-      <section className="max-w-4xl mx-auto px-6 pb-24">
+      <section className="w-full max-w-6xl mx-auto px-8 pb-28">
         <h2 className="text-xl font-bold mb-8 text-center" style={{ color: "#ede9fe" }}>Why Fundex</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map((f) => (
@@ -250,7 +250,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── CTA ──────────────────────────────────────────────────── */}
-      <section className="max-w-4xl mx-auto px-6 pb-32">
+      <section className="w-full max-w-6xl mx-auto px-8 pb-32">
         <div className="relative rounded-3xl p-10 text-center overflow-hidden"
           style={{ background: "linear-gradient(135deg, rgba(153,69,255,0.12), rgba(67,180,202,0.08))", border: "1px solid rgba(153,69,255,0.2)" }}>
           <div className="absolute inset-0 pointer-events-none"
@@ -275,7 +275,7 @@ export default function LandingPage() {
 
       {/* ── Footer ───────────────────────────────────────────────── */}
       <footer className="border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-        <div className="max-w-4xl mx-auto px-6 py-8 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-8 py-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-lg flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #9945ff, #43b4ca)" }}>
