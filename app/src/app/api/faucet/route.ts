@@ -24,7 +24,7 @@ const FAUCET_AMOUNT = 1_000_000_000;
 
 /** Rate limit: one airdrop per wallet per 10 minutes */
 const lastDrop = new Map<string, number>();
-const COOLDOWN_MS = 10 * 60 * 1000;
+const COOLDOWN_MS = 1 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const { wallet } = await req.json();
