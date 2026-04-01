@@ -18,7 +18,7 @@ import {
   INITIAL_MARGIN_BPS,
   DRIFT_PRICE_PRECISION,
 } from "./constants";
-import { oraclePda, marketPda, vaultPda, positionPda } from "./pda";
+import { oraclePda, marketPda, vaultPda, positionPda, poolPda, poolVaultPda, lpPositionPda } from "./pda";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -58,6 +58,22 @@ export interface Position {
 export interface PositionWithPnl extends Position {
   unrealizedPnl: number;  // USDC lamports
   marginRatioBps: number;
+  address: PublicKey;
+}
+
+export interface PoolState {
+  market: PublicKey;
+  totalShares: number;
+  lastRateIndex: number;
+  lastNetLots: number;
+  address: PublicKey;
+  vaultBalance: number;  // USDC lamports in pool vault
+}
+
+export interface LpPosition {
+  user: PublicKey;
+  pool: PublicKey;
+  shares: number;
   address: PublicKey;
 }
 
@@ -292,6 +308,149 @@ export class FundexClient {
         position,
         vault,
         liquidatorTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  // ─── Pool reads ─────────────────────────────────────────────────────────────
+
+  async fetchPool(
+    perpIndex: number,
+    duration: DurationVariant
+  ): Promise<PoolState | null> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [poolAddr] = poolPda(mkt);
+    const [pv] = poolVaultPda(mkt);
+    try {
+      const [acc, vaultAcc] = await Promise.all([
+        this.program.account.poolState.fetch(poolAddr),
+        this.connection.getTokenAccountBalance(pv),
+      ]);
+      return {
+        market: acc.market,
+        totalShares: acc.totalShares.toNumber(),
+        lastRateIndex: acc.lastRateIndex.toNumber(),
+        lastNetLots: acc.lastNetLots.toNumber(),
+        address: poolAddr,
+        vaultBalance: Number(vaultAcc.value.amount),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async fetchLpPosition(
+    user: PublicKey,
+    perpIndex: number,
+    duration: DurationVariant
+  ): Promise<LpPosition | null> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [poolAddr] = poolPda(mkt);
+    const [lpAddr] = lpPositionPda(user, poolAddr);
+    try {
+      const acc = await this.program.account.lpPosition.fetch(lpAddr);
+      return {
+        user: acc.user,
+        pool: acc.pool,
+        shares: acc.shares.toNumber(),
+        address: lpAddr,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Pool writes ────────────────────────────────────────────────────────────
+
+  async initializePool(
+    perpIndex: number,
+    duration: DurationVariant,
+    collateralMint: PublicKey
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [poolVault] = poolVaultPda(mkt);
+
+    return (this.program.methods.initializePool() as any)
+      .accounts({
+        admin: this.wallet,
+        market: mkt,
+        pool,
+        poolVault,
+        collateralMint,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+  }
+
+  async depositLp(
+    perpIndex: number,
+    duration: DurationVariant,
+    amount: number,
+    userTokenAccount: PublicKey
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [poolVault] = poolVaultPda(mkt);
+    const [lpPosition] = lpPositionPda(this.wallet, pool);
+
+    return (this.program.methods.depositLp(new BN(amount)) as any)
+      .accounts({
+        user: this.wallet,
+        market: mkt,
+        pool,
+        lpPosition,
+        poolVault,
+        userTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+  }
+
+  async withdrawLp(
+    perpIndex: number,
+    duration: DurationVariant,
+    shares: number,
+    userTokenAccount: PublicKey
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [poolVault] = poolVaultPda(mkt);
+    const [lpPosition] = lpPositionPda(this.wallet, pool);
+
+    return (this.program.methods.withdrawLp(new BN(shares)) as any)
+      .accounts({
+        user: this.wallet,
+        market: mkt,
+        pool,
+        lpPosition,
+        poolVault,
+        userTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  async syncPoolPnl(
+    perpIndex: number,
+    duration: DurationVariant
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [vault] = vaultPda(mkt);
+    const [poolVault] = poolVaultPda(mkt);
+
+    return (this.program.methods.syncPoolPnl() as any)
+      .accounts({
+        caller: this.wallet,
+        market: mkt,
+        pool,
+        vault,
+        poolVault,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .rpc();

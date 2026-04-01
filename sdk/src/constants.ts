@@ -9,6 +9,9 @@ export const SEED_RATE_ORACLE = Buffer.from("rate_oracle");
 export const SEED_MARKET = Buffer.from("market");
 export const SEED_POSITION = Buffer.from("position");
 export const SEED_VAULT = Buffer.from("vault");
+export const SEED_POOL = Buffer.from("pool");
+export const SEED_POOL_VAULT = Buffer.from("pool_vault");
+export const SEED_LP_POSITION = Buffer.from("lp_position");
 
 // On-chain constants
 export const INITIAL_MARGIN_BPS = 1_000; // 10%

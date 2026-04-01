@@ -3,7 +3,7 @@ import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionSignature } fr
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { DurationVariant, Side } from "@/lib/constants";
 import { FUNDEX_PROGRAM_ID, NOTIONAL_PER_LOT_LAMPORTS, INITIAL_MARGIN_BPS, DRIFT_PRICE_PRECISION } from "./constants";
-import { oraclePda, marketPda, vaultPda, positionPda } from "./pda";
+import { oraclePda, marketPda, vaultPda, positionPda, poolPda, poolVaultPda, lpPositionPda } from "./pda";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const IDL = require("./idl.json");
 
@@ -20,6 +20,21 @@ export interface MarketState {
   totalFixedReceiverLots: number;
   totalCollateral: number;
   isActive: boolean;
+}
+
+export interface PoolInfo {
+  address: PublicKey;
+  totalShares: number;
+  lastRateIndex: number;
+  lastNetLots: number;
+  vaultBalance: number;  // USDC lamports
+}
+
+export interface LpPositionInfo {
+  address: PublicKey;
+  shares: number;
+  /** Pro-rata USDC value (lamports) */
+  usdcValue: number;
 }
 
 export interface PositionWithPnl {
@@ -182,6 +197,128 @@ export class FundexClient {
         position,
         vault,
         userTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  async fetchPool(perpIndex: number, duration: DurationVariant): Promise<PoolInfo | null> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [pv] = poolVaultPda(mkt);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [acc, bal] = await Promise.all([
+        (this.program.account as any).poolState.fetch(pool),
+        this.provider.connection.getTokenAccountBalance(pv),
+      ]);
+      return {
+        address: pool,
+        totalShares: acc.totalShares.toNumber(),
+        lastRateIndex: acc.lastRateIndex.toNumber(),
+        lastNetLots: acc.lastNetLots.toNumber(),
+        vaultBalance: Number(bal.value.amount),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async fetchLpPosition(
+    user: PublicKey,
+    perpIndex: number,
+    duration: DurationVariant
+  ): Promise<LpPositionInfo | null> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [lpAddr] = lpPositionPda(user, pool);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const acc = await (this.program.account as any).lpPosition.fetch(lpAddr);
+      const shares = acc.shares.toNumber();
+      // Get pool vault balance to compute pro-rata value
+      const poolInfo = await this.fetchPool(perpIndex, duration);
+      const usdcValue =
+        poolInfo && poolInfo.totalShares > 0
+          ? Math.floor((shares * poolInfo.vaultBalance) / poolInfo.totalShares)
+          : 0;
+      return { address: lpAddr, shares, usdcValue };
+    } catch {
+      return null;
+    }
+  }
+
+  async depositLp(
+    perpIndex: number,
+    duration: DurationVariant,
+    amount: number,
+    userTokenAccount: PublicKey
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [pv] = poolVaultPda(mkt);
+    const [lp] = lpPositionPda(this.wallet, pool);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this.program.methods as any)
+      .depositLp(new BN(amount))
+      .accounts({
+        user: this.wallet,
+        market: mkt,
+        pool,
+        lpPosition: lp,
+        poolVault: pv,
+        userTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+  }
+
+  async withdrawLp(
+    perpIndex: number,
+    duration: DurationVariant,
+    shares: number,
+    userTokenAccount: PublicKey
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [pv] = poolVaultPda(mkt);
+    const [lp] = lpPositionPda(this.wallet, pool);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this.program.methods as any)
+      .withdrawLp(new BN(shares))
+      .accounts({
+        user: this.wallet,
+        market: mkt,
+        pool,
+        lpPosition: lp,
+        poolVault: pv,
+        userTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  async syncPoolPnl(
+    perpIndex: number,
+    duration: DurationVariant
+  ): Promise<TransactionSignature> {
+    const [mkt] = marketPda(perpIndex, duration);
+    const [pool] = poolPda(mkt);
+    const [vault] = vaultPda(mkt);
+    const [pv] = poolVaultPda(mkt);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this.program.methods as any)
+      .syncPoolPnl()
+      .accounts({
+        caller: this.wallet,
+        market: mkt,
+        pool,
+        vault,
+        poolVault: pv,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .rpc();

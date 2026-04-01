@@ -5,6 +5,9 @@ import {
   SEED_MARKET,
   SEED_POSITION,
   SEED_VAULT,
+  SEED_POOL,
+  SEED_POOL_VAULT,
+  SEED_LP_POSITION,
 } from "./constants";
 
 export function oraclePda(
@@ -49,6 +52,37 @@ export function positionPda(
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_POSITION, user.toBuffer(), market.toBuffer()],
+    programId
+  );
+}
+
+export function poolPda(
+  market: PublicKey,
+  programId: PublicKey = FUNDEX_PROGRAM_ID
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_POOL, market.toBuffer()],
+    programId
+  );
+}
+
+export function poolVaultPda(
+  market: PublicKey,
+  programId: PublicKey = FUNDEX_PROGRAM_ID
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_POOL_VAULT, market.toBuffer()],
+    programId
+  );
+}
+
+export function lpPositionPda(
+  user: PublicKey,
+  pool: PublicKey,
+  programId: PublicKey = FUNDEX_PROGRAM_ID
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_LP_POSITION, user.toBuffer(), pool.toBuffer()],
     programId
   );
 }

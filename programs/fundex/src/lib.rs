@@ -52,4 +52,20 @@ pub mod fundex {
     pub fn liquidate_position(ctx: Context<LiquidatePosition>) -> Result<()> {
         instructions::liquidate_position::handler(ctx)
     }
+
+    pub fn initialize_pool(ctx: Context<InitializePool>) -> Result<()> {
+        instructions::initialize_pool::handler(ctx)
+    }
+
+    pub fn deposit_lp(ctx: Context<DepositLp>, amount: u64) -> Result<()> {
+        instructions::deposit_lp::handler(ctx, amount)
+    }
+
+    pub fn withdraw_lp(ctx: Context<WithdrawLp>, shares: u64) -> Result<()> {
+        instructions::withdraw_lp::handler(ctx, shares)
+    }
+
+    pub fn sync_pool_pnl(ctx: Context<SyncPoolPnl>) -> Result<()> {
+        instructions::sync_pool_pnl::handler(ctx)
+    }
 }

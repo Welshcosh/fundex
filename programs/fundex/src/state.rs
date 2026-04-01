@@ -65,6 +65,38 @@ impl MarketState {
     }
 }
 
+// ─── PoolState ────────────────────────────────────────────────────────────────
+// seeds: [SEED_POOL, market.key()]
+// One pool per market. LPs deposit here; pool absorbs the net imbalance PnL.
+#[account]
+pub struct PoolState {
+    pub market: Pubkey,
+    pub total_shares: u64,       // Total LP shares outstanding
+    pub last_rate_index: i64,    // market.cumulative_rate_index at last sync
+    pub last_net_lots: i64,      // (payer_lots - receiver_lots) at last sync
+    pub bump: u8,
+    pub pool_vault_bump: u8,
+}
+
+impl PoolState {
+    pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 1 + 1; // = 66
+}
+
+// ─── LpPosition ───────────────────────────────────────────────────────────────
+// seeds: [SEED_LP_POSITION, user.key(), pool.key()]
+// One LP position per (user, pool).
+#[account]
+pub struct LpPosition {
+    pub user: Pubkey,
+    pub pool: Pubkey,
+    pub shares: u64,
+    pub bump: u8,
+}
+
+impl LpPosition {
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 1; // = 81
+}
+
 // ─── Position ─────────────────────────────────────────────────────────────────
 // seeds: [SEED_POSITION, user.key(), market.key()]
 // One position per (user, market).

@@ -28,4 +28,10 @@ pub enum FundexError {
     FixedRateOutOfBounds,
     #[msg("Market is not active")]
     MarketInactive,
+    #[msg("Insufficient pool vault balance")]
+    InsufficientPoolBalance,
+    #[msg("Insufficient LP shares to withdraw")]
+    InsufficientShares,
+    #[msg("Pool has no shares — cannot calculate withdrawal")]
+    PoolEmpty,
 }

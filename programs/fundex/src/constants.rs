@@ -3,6 +3,9 @@ pub const SEED_RATE_ORACLE: &[u8] = b"rate_oracle";
 pub const SEED_MARKET: &[u8] = b"market";
 pub const SEED_POSITION: &[u8] = b"position";
 pub const SEED_VAULT: &[u8] = b"vault";
+pub const SEED_POOL: &[u8] = b"pool";
+pub const SEED_POOL_VAULT: &[u8] = b"pool_vault";
+pub const SEED_LP_POSITION: &[u8] = b"lp_position";
 
 // ─── Margin (bps) ────────────────────────────────────────────────────────────
 pub const INITIAL_MARGIN_BPS: u64 = 1_000; // 10%
