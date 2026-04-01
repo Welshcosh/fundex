@@ -38,3 +38,8 @@ pub const DURATION_180D: i64 = 180 * 24 * 3_600;
 // Max allowed fixed_rate: ±50% annualized ≈ ±5000 bps hourly in Drift units
 // Drift unit per 1% per hour ≈ 10_000
 pub const MAX_FIXED_RATE_ABS: i64 = 500_000;
+
+// ─── LP Fee ──────────────────────────────────────────────────────────────────
+// Charged when opening a position that increases net imbalance.
+// Goes directly to pool_vault to reward LPs.
+pub const LP_FEE_BPS: u64 = 30; // 0.3%

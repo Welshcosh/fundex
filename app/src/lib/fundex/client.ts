@@ -163,6 +163,7 @@ export class FundexClient {
     const [market] = marketPda(perpIndex, duration);
     const [position] = positionPda(this.wallet, market);
     const [vault] = vaultPda(market);
+    const [pv] = poolVaultPda(market);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.program.methods as any)
@@ -172,6 +173,7 @@ export class FundexClient {
         market,
         position,
         vault,
+        poolVault: pv,
         userTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,

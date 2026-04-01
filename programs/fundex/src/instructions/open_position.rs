@@ -25,7 +25,25 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
         .checked_div(10_000)
         .ok_or(FundexError::MathOverflow)? as u64;
 
-    // Transfer collateral from user → vault
+    // LP fee: charged when this position increases net imbalance.
+    // side=0 (Payer) increases imbalance if payer_lots >= receiver_lots
+    // side=1 (Receiver) increases imbalance if receiver_lots >= payer_lots
+    let increases_imbalance = if side == 0 {
+        market.total_fixed_payer_lots >= market.total_fixed_receiver_lots
+    } else {
+        market.total_fixed_receiver_lots >= market.total_fixed_payer_lots
+    };
+    let lp_fee = if increases_imbalance {
+        notional
+            .checked_mul(LP_FEE_BPS as u128)
+            .ok_or(FundexError::MathOverflow)?
+            .checked_div(10_000)
+            .ok_or(FundexError::MathOverflow)? as u64
+    } else {
+        0
+    };
+
+    // Transfer collateral: user → vault
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -37,6 +55,21 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
         ),
         collateral,
     )?;
+
+    // Transfer LP fee: user → pool_vault (if fee > 0)
+    if lp_fee > 0 {
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.user_token_account.to_account_info(),
+                    to: ctx.accounts.pool_vault.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
+                },
+            ),
+            lp_fee,
+        )?;
+    }
 
     // Update market state
     if side == 0 {
@@ -105,6 +138,15 @@ pub struct OpenPosition<'info> {
         token::authority = market,
     )]
     pub vault: Account<'info, TokenAccount>,
+
+    /// Pool vault — receives LP fee when position increases imbalance
+    #[account(
+        mut,
+        seeds = [SEED_POOL_VAULT, market.key().as_ref()],
+        bump,
+        token::mint = market.collateral_mint,
+    )]
+    pub pool_vault: Account<'info, TokenAccount>,
 
     #[account(
         mut,

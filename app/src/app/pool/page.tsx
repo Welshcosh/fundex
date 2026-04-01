@@ -351,8 +351,9 @@ export default function PoolPage() {
           <div className="font-semibold mb-1" style={{ color: "#c4b5fd" }}>How Pool LP works</div>
           <div style={{ color: "#6b6890" }}>
             Each pool absorbs the net imbalance between Fixed Payers and Fixed Receivers.
-            When payers outnumber receivers, the pool acts as the receiver for the difference — earning fixed rate.
-            LPs share P&L proportional to their deposit. Sync the pool periodically to settle PnL on-chain.
+            When payers outnumber receivers, the pool acts as the receiver for the difference — earning the rate spread.
+            LPs also earn a <span style={{ color: "#fbbf24" }}>0.3% fee</span> on every position opened in the imbalanced direction.
+            LP P&L is pro-rata to deposit share.
           </div>
         </div>
 
