@@ -53,7 +53,7 @@ function sma(data: number[], window: number): (number | null)[] {
 // ─── Line Chart ───────────────────────────────────────────────────────────────
 
 function LineChart({ data, color, gradId }: { data: number[]; color: string; gradId: string }) {
-  const W = 600; const H = 130; const pad = 8;
+  const W = 600; const H = 170; const pad = 8;
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
@@ -94,7 +94,7 @@ function LineChart({ data, color, gradId }: { data: number[]; color: string; gra
 // ─── Candle Chart ─────────────────────────────────────────────────────────────
 
 function CandleChart({ candles, gradId }: { candles: Candle[]; gradId: string }) {
-  const W = 600; const H = 130; const pad = 8;
+  const W = 600; const H = 170; const pad = 8;
   const allVals = candles.flatMap(c => [c.h, c.l]);
   const min = Math.min(...allVals);
   const max = Math.max(...allVals);
@@ -227,7 +227,7 @@ export function RateChart({ market, onchainData }: { market: MarketInfo; onchain
       </div>
 
       {/* Chart */}
-      <div style={{ height: "130px" }}>
+      <div style={{ height: "170px" }}>
         {chartType === "line"
           ? <LineChart data={lineData} color={color} gradId={gradId} />
           : <CandleChart candles={candleData} gradId={gradId} />}
