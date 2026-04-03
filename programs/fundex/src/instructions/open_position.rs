@@ -25,7 +25,11 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
         .checked_div(10_000)
         .ok_or(FundexError::MathOverflow)? as u64;
 
-    // LP fee: charged when this position increases net imbalance.
+    // AMM-style LP fee: charged when this position increases net imbalance.
+    // Fee scales with imbalance ratio: base 0.3% + up to 0.7% premium → max 1.0%
+    // This creates AMM-like spread pricing — the more imbalanced the market,
+    // the more expensive it is to push it further out of balance.
+    //
     // side=0 (Payer) increases imbalance if payer_lots >= receiver_lots
     // side=1 (Receiver) increases imbalance if receiver_lots >= payer_lots
     let increases_imbalance = if side == 0 {
@@ -34,8 +38,29 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
         market.total_fixed_receiver_lots >= market.total_fixed_payer_lots
     };
     let lp_fee = if increases_imbalance {
+        // imbalance_ratio in [0, 10_000]: |payer - receiver| / (payer + receiver)
+        let total_lots = market.total_fixed_payer_lots
+            .saturating_add(market.total_fixed_receiver_lots);
+        let net_lots_abs = if market.total_fixed_payer_lots > market.total_fixed_receiver_lots {
+            market.total_fixed_payer_lots - market.total_fixed_receiver_lots
+        } else {
+            market.total_fixed_receiver_lots - market.total_fixed_payer_lots
+        };
+        let imbalance_ratio = if total_lots > 0 {
+            (net_lots_abs as u128)
+                .saturating_mul(10_000)
+                .saturating_div(total_lots as u128)
+                .min(10_000)
+        } else {
+            0
+        };
+        // dynamic_fee_bps = BASE(30) + imbalance_ratio × MAX_PREMIUM(70) / 10_000
+        let dynamic_fee_bps = LP_FEE_BPS as u128
+            + imbalance_ratio
+                .saturating_mul(MAX_IMBALANCE_FEE_BPS as u128)
+                .saturating_div(10_000);
         notional
-            .checked_mul(LP_FEE_BPS as u128)
+            .checked_mul(dynamic_fee_bps)
             .ok_or(FundexError::MathOverflow)?
             .checked_div(10_000)
             .ok_or(FundexError::MathOverflow)? as u64

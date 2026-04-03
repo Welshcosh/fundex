@@ -17,6 +17,10 @@ export interface OnchainMarketData {
   fixedRate: number;
   /** Open interest in USD (matched lots × $100) */
   oiUsd: number;
+  /** Total fixed payer lots open */
+  payerLots: number;
+  /** Total fixed receiver lots open */
+  receiverLots: number;
   /** Whether on-chain data loaded successfully */
   live: boolean;
   loading: boolean;
@@ -45,6 +49,8 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
     variableRate: market.baseRate,
     fixedRate: Math.round(market.baseRate * 0.92),
     oiUsd: 0,
+    payerLots: 0,
+    receiverLots: 0,
     live: false,
   });
   const [loading, setLoading] = useState(false);
@@ -75,7 +81,7 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
       const matchedLots = Math.min(payerLots, receiverLots);
       const oiUsd = (matchedLots * NOTIONAL_PER_LOT_LAMPORTS) / 1_000_000;
 
-      setData({ variableRate, fixedRate, oiUsd, live: true });
+      setData({ variableRate, fixedRate, oiUsd, payerLots, receiverLots, live: true });
     } catch {
       setData((prev) => ({ ...prev, live: false }));
     } finally {

@@ -7,6 +7,84 @@ import { formatRate, formatRateAnnualized, formatUSD } from "@/lib/utils";
 import { useMarketData } from "@/hooks/useMarketData";
 
 const DURATIONS = [DurationVariant.Days7, DurationVariant.Days30, DurationVariant.Days90, DurationVariant.Days180];
+const DUR_LABELS = ["7D", "30D", "90D", "180D"];
+
+/** Mini SVG yield curve — 4 fixed rates over 4 durations, variable rate as dashed baseline */
+function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRate: number; live: boolean }) {
+  const W = 220, H = 52;
+  const PX = 10, PY = 8;
+  const plotW = W - PX * 2;
+  const plotH = H - PY * 2;
+
+  const allVals = [...rates, variableRate].filter(Boolean);
+  if (allVals.length === 0) return null;
+
+  const minR = Math.min(...allVals) * 0.8;
+  const maxR = Math.max(...allVals) * 1.2;
+  const range = maxR - minR || 1;
+
+  const toX = (i: number) => PX + (i / 3) * plotW;
+  const toY = (r: number) => PY + plotH - ((r - minR) / range) * plotH;
+
+  const varY = toY(variableRate);
+  const ys = rates.map(toY);
+  const pathD = rates.map((_, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${ys[i].toFixed(1)}`).join(" ");
+
+  // Determine curve shape label
+  const isNormal = rates[3] > rates[0]; // longer = higher = normal
+  const isInverted = rates[3] < rates[0];
+  const shapeLabel = !live ? "" : isNormal ? "Normal" : isInverted ? "Inverted" : "Flat";
+  const shapeColor = isNormal ? "#2dd4bf" : isInverted ? "#f87171" : "#8b87a8";
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px]" style={{ color: "#4a4568" }}>Term Structure</span>
+        {live && shapeLabel && (
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md"
+            style={{ background: `${shapeColor}18`, color: shapeColor, border: `1px solid ${shapeColor}30` }}>
+            {shapeLabel}
+          </span>
+        )}
+      </div>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
+        {/* Variable rate baseline */}
+        <line x1={PX} y1={varY} x2={W - PX} y2={varY}
+          stroke="#2dd4bf" strokeWidth={1} strokeDasharray="3,2" opacity={0.45} />
+
+        {/* Curve fill */}
+        {live && (
+          <path
+            d={`${pathD} L ${toX(3).toFixed(1)} ${PY + plotH} L ${toX(0).toFixed(1)} ${PY + plotH} Z`}
+            fill="rgba(153,69,255,0.06)"
+          />
+        )}
+
+        {/* Curve line */}
+        <path d={pathD} fill="none"
+          stroke={live ? "#9945ff" : "#2d2b45"}
+          strokeWidth={1.5}
+          strokeDasharray={live ? "none" : "4,3"}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Dots */}
+        {live && ys.map((y, i) => (
+          <circle key={i} cx={toX(i)} cy={y} r={2.5} fill="#9945ff" />
+        ))}
+
+        {/* Duration labels */}
+        {DUR_LABELS.map((label, i) => (
+          <text key={i} x={toX(i)} y={H - 1} textAnchor="middle"
+            fontSize={8} fill="#2d2b45" fontFamily="monospace">
+            {label}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
 
 function MarketRow({ market }: { market: MarketInfo }) {
   const d7   = useMarketData(market, DurationVariant.Days7);
@@ -18,6 +96,10 @@ function MarketRow({ market }: { market: MarketInfo }) {
   const variableRate = d7.variableRate;
   const live = d7.live;
   const totalOI = durData.reduce((s, d) => s + d.oiUsd, 0);
+
+  const fixedRates = durData.map((d, di) =>
+    live ? d.fixedRate : Math.round(market.baseRate * (0.88 + di * 0.02))
+  );
 
   return (
     <div className="rounded-2xl overflow-hidden"
@@ -45,28 +127,35 @@ function MarketRow({ market }: { market: MarketInfo }) {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 md:gap-8">
-          <div className="text-right">
-            <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>8h Funding</div>
-            <div className="font-mono font-bold text-sm flex items-center gap-1 justify-end" style={{ color: "#2dd4bf" }}>
-              {live ? (
-                <span style={{ color: "#2dd4bf" }}>●</span>
-              ) : (
-                <TrendingUp size={11} />
-              )}
-              +{formatRate(variableRate)}
-            </div>
+        {/* Stats + Yield Curve */}
+        <div className="flex items-center gap-4 md:gap-6">
+          {/* Mini yield curve */}
+          <div className="hidden md:block">
+            <RateCurve rates={fixedRates} variableRate={variableRate} live={live} />
           </div>
-          <div className="hidden sm:block text-right">
-            <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>APY</div>
-            <div className="font-mono font-semibold text-sm" style={{ color: "#c4b5fd" }}>
-              +{formatRateAnnualized(variableRate)}
+
+          <div className="flex items-center gap-4 md:gap-6">
+            <div className="text-right">
+              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>8h Funding</div>
+              <div className="font-mono font-bold text-sm flex items-center gap-1 justify-end" style={{ color: "#2dd4bf" }}>
+                {live ? (
+                  <span style={{ color: "#2dd4bf" }}>●</span>
+                ) : (
+                  <TrendingUp size={11} />
+                )}
+                +{formatRate(variableRate)}
+              </div>
             </div>
-          </div>
-          <div className="hidden sm:block text-right">
-            <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>Open Interest</div>
-            <div className="font-mono text-sm" style={{ color: "#8b87a8" }}>{formatUSD(totalOI)}</div>
+            <div className="hidden sm:block text-right">
+              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>APY</div>
+              <div className="font-mono font-semibold text-sm" style={{ color: "#c4b5fd" }}>
+                +{formatRateAnnualized(variableRate)}
+              </div>
+            </div>
+            <div className="hidden sm:block text-right">
+              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>Open Interest</div>
+              <div className="font-mono text-sm" style={{ color: "#8b87a8" }}>{formatUSD(totalOI)}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -75,9 +164,7 @@ function MarketRow({ market }: { market: MarketInfo }) {
       <div className="grid grid-cols-2 sm:grid-cols-4">
         {DURATIONS.map((dur, di) => {
           const durResult = durData[di];
-          const fixedRate = live
-            ? durResult.fixedRate
-            : Math.round(market.baseRate * (0.88 + di * 0.02));
+          const fixedRate = fixedRates[di];
           const spread = variableRate - fixedRate;
           return (
             <Link key={dur} href={`/trade?perp=${market.perpIndex}&dur=${dur}`}
@@ -96,10 +183,17 @@ function MarketRow({ market }: { market: MarketInfo }) {
                   Spread {spread >= 0 ? "+" : ""}{formatRate(spread)}
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "#9945ff" }}>
-                <span className="text-[11px] font-medium">Trade</span>
-                <ArrowUpRight size={11} />
+              <div className="flex flex-col items-end gap-1">
+                {live && (
+                  <div className="text-[10px] font-mono" style={{ color: "#4a4568" }}>
+                    {durResult.payerLots}P / {durResult.receiverLots}R
+                  </div>
+                )}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ color: "#9945ff" }}>
+                  <span className="text-[11px] font-medium">Trade</span>
+                  <ArrowUpRight size={11} />
+                </div>
               </div>
             </Link>
           );
@@ -171,11 +265,23 @@ export default function MarketsPage() {
         <div className="mb-10">
           <h1 className="text-3xl font-bold mb-2" style={{ color: "#ede9fe" }}>Markets</h1>
           <p className="text-sm" style={{ color: "#6b6890" }}>
-            Trade funding rate swaps on Solana — go long or short on perpetual funding rates.
+            On-chain funding rate term structure — lock fixed rates across 7D / 30D / 90D / 180D maturities.
           </p>
         </div>
 
         <SummaryStats />
+
+        {/* Yield curve explainer */}
+        <div className="mb-6 px-5 py-4 rounded-2xl flex items-start gap-3"
+          style={{ background: "rgba(153,69,255,0.05)", border: "1px solid rgba(153,69,255,0.12)" }}>
+          <div className="mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#9945ff", marginTop: 6 }} />
+          <p className="text-xs leading-relaxed" style={{ color: "#6b6890" }}>
+            Each market card shows its <span style={{ color: "#c4b5fd" }}>funding rate term structure</span> — the yield curve of fixed rates across maturities.
+            A <span style={{ color: "#2dd4bf" }}>Normal</span> curve (longer = higher) signals the market expects rates to rise.
+            An <span style={{ color: "#f87171" }}>Inverted</span> curve signals falling rate expectations.
+            The <span style={{ color: "#2dd4bf" }}>dashed line</span> shows the current live funding rate.
+          </p>
+        </div>
 
         {/* Market list */}
         <div className="space-y-3">

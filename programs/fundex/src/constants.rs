@@ -39,7 +39,11 @@ pub const DURATION_180D: i64 = 180 * 24 * 3_600;
 // Drift unit per 1% per hour ≈ 10_000
 pub const MAX_FIXED_RATE_ABS: i64 = 500_000;
 
-// ─── LP Fee ──────────────────────────────────────────────────────────────────
+// ─── LP Fee (AMM-style dynamic pricing) ──────────────────────────────────────
 // Charged when opening a position that increases net imbalance.
 // Goes directly to pool_vault to reward LPs.
-pub const LP_FEE_BPS: u64 = 30; // 0.3%
+// Fee = BASE_FEE + imbalance_ratio × MAX_IMBALANCE_FEE
+//   imbalance_ratio = |payer_lots − receiver_lots| / (payer_lots + receiver_lots)
+//   At 0% imbalance: 0.3%  |  At 50% imbalance: ~0.65%  |  At 100% imbalance: 1.0%
+pub const LP_FEE_BPS: u64 = 30;             // 0.3% base
+pub const MAX_IMBALANCE_FEE_BPS: u64 = 70;  // 0.7% max premium → total max 1.0%

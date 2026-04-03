@@ -30,7 +30,18 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
   const notional = lots * LOT_DISPLAY;
   const collateralUsd = (notional * INITIAL_MARGIN_BPS) / 10_000;
   const collateralLamports = lots * NOTIONAL_PER_LOT_LAMPORTS * INITIAL_MARGIN_BPS / 10_000;
-  const lpFeeUsd = (notional * 30) / 10_000; // 0.3% — charged if opening in imbalanced direction
+
+  // AMM-style dynamic fee: 0.3% base + up to 0.7% imbalance premium
+  const payerLots = onchainData.payerLots;
+  const receiverLots = onchainData.receiverLots;
+  const increasesImbalance = side === Side.FixedPayer
+    ? payerLots >= receiverLots
+    : receiverLots >= payerLots;
+  const totalLots = payerLots + receiverLots;
+  const netLots = Math.abs(payerLots - receiverLots);
+  const imbalanceRatio = totalLots > 0 ? Math.min(netLots * 10_000 / totalLots, 10_000) : 0;
+  const dynamicFeeBps = increasesImbalance ? 30 + Math.round(imbalanceRatio * 70 / 10_000) : 0;
+  const lpFeeUsd = (notional * dynamicFeeBps) / 10_000;
 
   const fixedRate = onchainData.fixedRate;
   const variableRate = onchainData.variableRate;
@@ -41,7 +52,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
   const maxLoss = collateralUsd - (notional * MAINT_MARGIN_BPS) / 10_000;
   const toRuin = maxLoss > 0 && pnlPerSettlement < 0 ? Math.floor(maxLoss / Math.abs(pnlPerSettlement)) : null;
 
-  const totalRequired = collateralLamports + (lots * NOTIONAL_PER_LOT_LAMPORTS * 30 / 10_000);
+  const totalRequired = collateralLamports + Math.ceil(lots * NOTIONAL_PER_LOT_LAMPORTS * dynamicFeeBps / 10_000);
   const insufficient = connected && totalRequired > balanceLamports;
   const isLong = side === Side.FixedPayer;
 
@@ -178,7 +189,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
           {[
             ["Notional", formatUSD(notional), "#8b87a8"],
             ["Collateral (10%)", formatUSD(collateralUsd), "#8b87a8"],
-            ["LP fee (0.3%)", formatUSD(lpFeeUsd), "#fbbf24"],
+            [`AMM fee (${(dynamicFeeBps / 100).toFixed(1)}%)`, formatUSD(lpFeeUsd), increasesImbalance ? "#fbbf24" : "#4a4568"],
             ["Fixed rate", `+${formatRate(fixedRate)} / 8h`, "#6b6890"],
             ["Variable rate", `+${formatRate(variableRate)} / 8h`, "#2dd4bf"],
           ].map(([label, value, color]) => (
