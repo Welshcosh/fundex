@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/fundex.json`.
  */
 export type Fundex = {
-  "address": "7UzjwBopedNuBzf5T4CYouJrGqgkQRnjtMAwjxdPFbQk",
+  "address": "7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2",
   "metadata": {
     "name": "fundex",
     "version": "0.1.0",
@@ -13,6 +13,85 @@ export type Fundex = {
     "description": "Funding Rate Swap Market on Solana"
   },
   "instructions": [
+    {
+      "name": "closePool",
+      "discriminator": [
+        140,
+        189,
+        209,
+        23,
+        239,
+        62,
+        239,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "poolVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
     {
       "name": "closePosition",
       "discriminator": [
@@ -1240,11 +1319,15 @@ export type Fundex = {
             "type": "i64"
           },
           {
-            "name": "delta",
+            "name": "newFixedRate",
             "type": "i64"
           },
           {
-            "name": "newCumulativeRateIndex",
+            "name": "newCumulativeActualIndex",
+            "type": "i64"
+          },
+          {
+            "name": "newCumulativeFixedIndex",
             "type": "i64"
           },
           {
@@ -1348,7 +1431,11 @@ export type Fundex = {
             "type": "pubkey"
           },
           {
-            "name": "cumulativeRateIndex",
+            "name": "cumulativeActualIndex",
+            "type": "i64"
+          },
+          {
+            "name": "cumulativeFixedIndex",
             "type": "i64"
           },
           {
@@ -1420,7 +1507,11 @@ export type Fundex = {
             "type": "u64"
           },
           {
-            "name": "lastRateIndex",
+            "name": "lastActualIndex",
+            "type": "i64"
+          },
+          {
+            "name": "lastFixedIndex",
             "type": "i64"
           },
           {
@@ -1464,7 +1555,11 @@ export type Fundex = {
             "type": "u64"
           },
           {
-            "name": "entryRateIndex",
+            "name": "entryActualIndex",
+            "type": "i64"
+          },
+          {
+            "name": "entryFixedIndex",
             "type": "i64"
           },
           {
@@ -1580,7 +1675,11 @@ export type Fundex = {
             "type": "u64"
           },
           {
-            "name": "entryRateIndex",
+            "name": "entryActualIndex",
+            "type": "i64"
+          },
+          {
+            "name": "entryFixedIndex",
             "type": "i64"
           },
           {

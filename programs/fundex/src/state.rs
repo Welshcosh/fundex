@@ -35,16 +35,17 @@ impl RateOracle {
 #[account]
 pub struct MarketState {
     pub perp_index: u16,
-    pub duration_variant: u8,    // 0=7d, 1=30d, 2=90d, 3=180d
-    pub fixed_rate: i64,         // fixed rate per settlement interval (Drift units)
-    pub notional_per_lot: u64,   // USDC lamports per lot (e.g. 100_000_000 = 100 USDC)
+    pub duration_variant: u8,         // 0=7d, 1=30d, 2=90d, 3=180d
+    pub fixed_rate: i64,              // current fixed rate (updated toward oracle EMA each settlement)
+    pub notional_per_lot: u64,        // USDC lamports per lot (e.g. 100_000_000 = 100 USDC)
     pub expiry_ts: i64,
     pub collateral_mint: Pubkey,
-    pub cumulative_rate_index: i64,  // ∑(actual - fixed) across all settlements
+    pub cumulative_actual_index: i64, // ∑ actual_rate across all settlements
+    pub cumulative_fixed_index: i64,  // ∑ fixed_rate across all settlements
     pub last_settled_ts: i64,
     pub total_fixed_payer_lots: u64,
     pub total_fixed_receiver_lots: u64,
-    pub total_collateral: u64,   // total USDC lamports currently in vault
+    pub total_collateral: u64,        // total USDC lamports currently in vault
     pub is_active: bool,
     pub admin: Pubkey,
     pub bump: u8,
@@ -52,7 +53,7 @@ pub struct MarketState {
 }
 
 impl MarketState {
-    pub const LEN: usize = 8 + 2 + 1 + 8 + 8 + 8 + 32 + 8 + 8 + 8 + 8 + 8 + 1 + 32 + 1 + 1; // = 142
+    pub const LEN: usize = 8 + 2 + 1 + 8 + 8 + 8 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 32 + 1 + 1; // = 150
 
     pub fn duration_seconds(variant: u8) -> Option<i64> {
         match variant {
@@ -71,15 +72,16 @@ impl MarketState {
 #[account]
 pub struct PoolState {
     pub market: Pubkey,
-    pub total_shares: u64,       // Total LP shares outstanding
-    pub last_rate_index: i64,    // market.cumulative_rate_index at last sync
+    pub total_shares: u64,
+    pub last_actual_index: i64,  // market.cumulative_actual_index at last sync
+    pub last_fixed_index: i64,   // market.cumulative_fixed_index at last sync
     pub last_net_lots: i64,      // (payer_lots - receiver_lots) at last sync
     pub bump: u8,
     pub pool_vault_bump: u8,
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 1 + 1; // = 66
+    pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 8 + 1 + 1; // = 74
 }
 
 // ─── LpPosition ───────────────────────────────────────────────────────────────
@@ -104,25 +106,35 @@ impl LpPosition {
 pub struct Position {
     pub user: Pubkey,
     pub market: Pubkey,
-    pub side: u8,               // 0=FixedPayer, 1=FixedReceiver
+    pub side: u8,                  // 0=FixedPayer, 1=FixedReceiver
     pub lots: u64,
     pub collateral_deposited: u64,
-    pub entry_rate_index: i64,  // market.cumulative_rate_index at open
+    pub entry_actual_index: i64,   // market.cumulative_actual_index at open
+    pub entry_fixed_index: i64,    // market.cumulative_fixed_index at open
     pub open_ts: i64,
     pub bump: u8,
 }
 
 impl Position {
-    pub const LEN: usize = 8 + 32 + 32 + 1 + 8 + 8 + 8 + 8 + 1; // = 106
+    pub const LEN: usize = 8 + 32 + 32 + 1 + 8 + 8 + 8 + 8 + 8 + 1; // = 114
 
     /// Unrealized PnL in USDC lamports.
-    /// Fixed Payer:   pnl = +delta * lots * notional_per_lot / DRIFT_PRICE_PRECISION
-    /// Fixed Receiver: pnl = -delta * lots * notional_per_lot / DRIFT_PRICE_PRECISION
+    ///
+    /// net_delta = (cumulative_actual_index - entry_actual_index)
+    ///           - (cumulative_fixed_index  - entry_fixed_index)
+    ///
+    /// Fixed Payer profits when actual > fixed (net_delta > 0).
+    /// Fixed Receiver profits when actual < fixed (net_delta < 0).
     pub fn unrealized_pnl(&self, market: &MarketState) -> i64 {
-        let rate_delta = market
-            .cumulative_rate_index
-            .saturating_sub(self.entry_rate_index);
-        let raw = (rate_delta as i128)
+        let actual_delta = market
+            .cumulative_actual_index
+            .saturating_sub(self.entry_actual_index);
+        let fixed_delta = market
+            .cumulative_fixed_index
+            .saturating_sub(self.entry_fixed_index);
+        let net_delta = actual_delta.saturating_sub(fixed_delta);
+
+        let raw = (net_delta as i128)
             .saturating_mul(self.lots as i128)
             .saturating_mul(market.notional_per_lot as i128)
             / DRIFT_PRICE_PRECISION as i128;

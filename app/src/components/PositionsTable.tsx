@@ -48,31 +48,35 @@ function useHistory() {
     if (!publicKey) { setHistory([]); return; }
     setLoading(true);
     try {
-      // Fetch recent signatures for user's address
-      const sigs = await connection.getSignaturesForAddress(publicKey, { limit: 50 });
-      // Fetch each transaction and filter to Fundex program ones
+      const sigs = await connection.getSignaturesForAddress(publicKey, { limit: 20 });
+      // Fetch all transactions in parallel
+      const txs = await Promise.all(
+        sigs.map((s) =>
+          connection.getParsedTransaction(s.signature, { maxSupportedTransactionVersion: 0 })
+            .then((tx) => ({ sig: s.signature, blockTime: s.blockTime, tx }))
+            .catch(() => null)
+        )
+      );
+      const fundexId = FUNDEX_PROGRAM_ID.toString();
       const entries: HistoryEntry[] = [];
-      for (const s of sigs) {
-        const tx = await connection.getParsedTransaction(s.signature, { maxSupportedTransactionVersion: 0 });
-        if (!tx) continue;
-        const keys = tx.transaction.message.accountKeys.map((k) =>
+      for (const item of txs) {
+        if (!item?.tx) continue;
+        const keys = item.tx.transaction.message.accountKeys.map((k) =>
           typeof k === "string" ? k : k.pubkey.toString()
         );
-        if (!keys.includes(FUNDEX_PROGRAM_ID.toString())) continue;
+        if (!keys.includes(fundexId)) continue;
 
-        // Parse action from logs
         let action = "Transaction";
-        const logs = tx.meta?.logMessages ?? [];
+        const logs = item.tx.meta?.logMessages ?? [];
         for (const log of logs) {
           if (log.includes("Instruction: OpenPosition")) { action = "Open Position"; break; }
           if (log.includes("Instruction: ClosePosition")) { action = "Close Position"; break; }
           if (log.includes("Instruction: SettleFunding")) { action = "Settle Funding"; break; }
           if (log.includes("Instruction: LiquidatePosition")) { action = "Liquidation"; break; }
         }
-        // Skip settle_funding spam in history
         if (action === "Settle Funding") continue;
 
-        entries.push({ sig: s.signature, blockTime: s.blockTime, action });
+        entries.push({ sig: item.sig, blockTime: item.blockTime, action });
         if (entries.length >= 20) break;
       }
       setHistory(entries);
@@ -191,7 +195,7 @@ export function PositionsTable() {
 
                   {/* Entry Rate */}
                   <td className="px-4 py-3 font-mono" style={{ color: "#4a4568" }}>
-                    +{formatRate(p.entryRateIndex > 0 ? p.entryRateIndex : p.fixedRate)}
+                    +{formatRate(p.fixedRate)}
                   </td>
 
                   {/* Current Rate */}

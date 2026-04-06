@@ -10,3 +10,8 @@ app/.env*.local
 .env.local
 .env*.local
 .vercel
+
+# Solana keypairs (never commit private keys)
+**/*-keypair.json
+**/id.json
+deploy-keypair.json

@@ -1,5 +1,5 @@
 {
-  "address": "7UzjwBopedNuBzf5T4CYouJrGqgkQRnjtMAwjxdPFbQk",
+  "address": "7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2",
   "metadata": {
     "name": "fundex",
     "version": "0.1.0",
@@ -7,6 +7,85 @@
     "description": "Funding Rate Swap Market on Solana"
   },
   "instructions": [
+    {
+      "name": "close_pool",
+      "discriminator": [
+        140,
+        189,
+        209,
+        23,
+        239,
+        62,
+        239,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
     {
       "name": "close_position",
       "discriminator": [
@@ -1234,11 +1313,15 @@
             "type": "i64"
           },
           {
-            "name": "delta",
+            "name": "new_fixed_rate",
             "type": "i64"
           },
           {
-            "name": "new_cumulative_rate_index",
+            "name": "new_cumulative_actual_index",
+            "type": "i64"
+          },
+          {
+            "name": "new_cumulative_fixed_index",
             "type": "i64"
           },
           {
@@ -1342,7 +1425,11 @@
             "type": "pubkey"
           },
           {
-            "name": "cumulative_rate_index",
+            "name": "cumulative_actual_index",
+            "type": "i64"
+          },
+          {
+            "name": "cumulative_fixed_index",
             "type": "i64"
           },
           {
@@ -1414,7 +1501,11 @@
             "type": "u64"
           },
           {
-            "name": "last_rate_index",
+            "name": "last_actual_index",
+            "type": "i64"
+          },
+          {
+            "name": "last_fixed_index",
             "type": "i64"
           },
           {
@@ -1458,7 +1549,11 @@
             "type": "u64"
           },
           {
-            "name": "entry_rate_index",
+            "name": "entry_actual_index",
+            "type": "i64"
+          },
+          {
+            "name": "entry_fixed_index",
             "type": "i64"
           },
           {
@@ -1574,7 +1669,11 @@
             "type": "u64"
           },
           {
-            "name": "entry_rate_index",
+            "name": "entry_actual_index",
+            "type": "i64"
+          },
+          {
+            "name": "entry_fixed_index",
             "type": "i64"
           },
           {

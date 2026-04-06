@@ -8,6 +8,7 @@ pub mod initialize_pool;
 pub mod deposit_lp;
 pub mod withdraw_lp;
 pub mod sync_pool_pnl;
+pub mod close_pool;
 
 pub use initialize_rate_oracle::*;
 pub use initialize_market::*;
@@ -19,3 +20,4 @@ pub use initialize_pool::*;
 pub use deposit_lp::*;
 pub use withdraw_lp::*;
 pub use sync_pool_pnl::*;
+pub use close_pool::*;

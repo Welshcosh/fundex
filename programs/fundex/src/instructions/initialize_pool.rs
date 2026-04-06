@@ -9,7 +9,8 @@ pub fn handler(ctx: Context<InitializePool>) -> Result<()> {
 
     pool.market = market.key();
     pool.total_shares = 0;
-    pool.last_rate_index = market.cumulative_rate_index;
+    pool.last_actual_index = market.cumulative_actual_index;
+    pool.last_fixed_index = market.cumulative_fixed_index;
     pool.last_net_lots = market.total_fixed_payer_lots as i64
         - market.total_fixed_receiver_lots as i64;
     pool.bump = ctx.bumps.pool;

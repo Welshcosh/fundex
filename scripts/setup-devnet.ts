@@ -64,6 +64,15 @@ function vaultPda(market: PublicKey, programId: PublicKey): [PublicKey, number] 
   return PublicKey.findProgramAddressSync([Buffer.from("vault"), market.toBuffer()], programId);
 }
 
+const DRIFT_PROGRAM_ID = new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH");
+const DRIFT_MARKET_INDEX: Record<number, number> = { 0: 1, 1: 2, 2: 0, 3: 20 };
+
+function driftPerpMarketPda(driftMarketIndex: number): PublicKey {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16LE(driftMarketIndex);
+  return PublicKey.findProgramAddressSync([Buffer.from("perp_market"), buf], DRIFT_PROGRAM_ID)[0];
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function sleep(ms: number) {
@@ -159,9 +168,10 @@ async function main() {
     // One initial settlement to bootstrap the oracle EMA.
     // Remaining samples come from the crank running hourly.
     try {
+      const driftPerpMarket = driftPerpMarketPda(DRIFT_MARKET_INDEX[perp.index]);
       const sig = await (program.methods as any)
-        .settleFunding(new BN(perp.mockRate))
-        .accounts({ crank: admin.publicKey, market, oracle })
+        .settleFunding()
+        .accounts({ crank: admin.publicKey, market, oracle, driftPerpMarket })
         .rpc();
       await confirm(sig, conn);
     } catch (e: any) {
@@ -197,7 +207,7 @@ async function main() {
 
       try {
         const sig = await (program.methods as any)
-          .initializeMarket(perp.index, dur, null) // null = use oracle EMA
+          .initializeMarket(perp.index, dur, new BN(perp.mockRate)) // use mockRate until oracle warms up
           .accounts({
             admin: admin.publicKey,
             oracle,

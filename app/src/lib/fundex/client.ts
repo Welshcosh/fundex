@@ -14,7 +14,8 @@ export interface MarketState {
   notionalPerLot: number;
   expiryTs: number;
   collateralMint: PublicKey;
-  cumulativeRateIndex: number;
+  cumulativeActualIndex: number;
+  cumulativeFixedIndex: number;
   lastSettledTs: number;
   totalFixedPayerLots: number;
   totalFixedReceiverLots: number;
@@ -25,7 +26,8 @@ export interface MarketState {
 export interface PoolInfo {
   address: PublicKey;
   totalShares: number;
-  lastRateIndex: number;
+  lastActualIndex: number;
+  lastFixedIndex: number;
   lastNetLots: number;
   vaultBalance: number;  // USDC lamports
 }
@@ -43,7 +45,8 @@ export interface PositionWithPnl {
   side: number;
   lots: number;
   collateralDeposited: number;
-  entryRateIndex: number;
+  entryActualIndex: number;
+  entryFixedIndex: number;
   openTs: number;
   unrealizedPnl: number;
   marginRatioBps: number;
@@ -93,7 +96,8 @@ export class FundexClient {
         notionalPerLot: acc.notionalPerLot.toNumber(),
         expiryTs: acc.expiryTs.toNumber(),
         collateralMint: acc.collateralMint,
-        cumulativeRateIndex: acc.cumulativeRateIndex.toNumber(),
+        cumulativeActualIndex: acc.cumulativeActualIndex.toNumber(),
+        cumulativeFixedIndex: acc.cumulativeFixedIndex.toNumber(),
         lastSettledTs: acc.lastSettledTs.toNumber(),
         totalFixedPayerLots: acc.totalFixedPayerLots.toNumber(),
         totalFixedReceiverLots: acc.totalFixedReceiverLots.toNumber(),
@@ -120,10 +124,14 @@ export class FundexClient {
       const acc = await (this.program.account as any).position.fetch(posPda);
       const lots = acc.lots.toNumber();
       const collateralDeposited = acc.collateralDeposited.toNumber();
-      const entryRateIndex = acc.entryRateIndex.toNumber();
+      const entryActualIndex = acc.entryActualIndex.toNumber();
+      const entryFixedIndex = acc.entryFixedIndex.toNumber();
 
-      const rateDelta = market.cumulativeRateIndex - entryRateIndex;
-      const rawPnl = (rateDelta * lots * market.notionalPerLot) / DRIFT_PRICE_PRECISION;
+      // Split-index PnL: mirrors on-chain unrealized_pnl()
+      const actualDelta = market.cumulativeActualIndex - entryActualIndex;
+      const fixedDelta = market.cumulativeFixedIndex - entryFixedIndex;
+      const netDelta = actualDelta - fixedDelta;
+      const rawPnl = (netDelta * lots * market.notionalPerLot) / DRIFT_PRICE_PRECISION;
       const unrealizedPnl = acc.side === Side.FixedPayer ? rawPnl : -rawPnl;
       const notional = market.notionalPerLot * lots;
       const effective = collateralDeposited + unrealizedPnl;
@@ -136,7 +144,8 @@ export class FundexClient {
         side: acc.side,
         lots,
         collateralDeposited,
-        entryRateIndex,
+        entryActualIndex,
+        entryFixedIndex,
         openTs: acc.openTs.toNumber(),
         unrealizedPnl,
         marginRatioBps,
@@ -217,7 +226,8 @@ export class FundexClient {
       return {
         address: pool,
         totalShares: acc.totalShares.toNumber(),
-        lastRateIndex: acc.lastRateIndex.toNumber(),
+        lastActualIndex: acc.lastActualIndex.toNumber(),
+        lastFixedIndex: acc.lastFixedIndex.toNumber(),
         lastNetLots: acc.lastNetLots.toNumber(),
         vaultBalance: Number(bal.value.amount),
       };

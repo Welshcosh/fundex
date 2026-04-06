@@ -8,7 +8,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("7UzjwBopedNuBzf5T4CYouJrGqgkQRnjtMAwjxdPFbQk");
+declare_id!("7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2");
 
 #[program]
 pub mod fundex {
@@ -64,5 +64,9 @@ pub mod fundex {
 
     pub fn sync_pool_pnl(ctx: Context<SyncPoolPnl>) -> Result<()> {
         instructions::sync_pool_pnl::handler(ctx)
+    }
+
+    pub fn close_pool(ctx: Context<ClosePool>) -> Result<()> {
+        instructions::close_pool::handler(ctx)
     }
 }

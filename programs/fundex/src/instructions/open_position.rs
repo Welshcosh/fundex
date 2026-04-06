@@ -117,7 +117,8 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
     position.side = side;
     position.lots = lots;
     position.collateral_deposited = collateral;
-    position.entry_rate_index = market.cumulative_rate_index;
+    position.entry_actual_index = market.cumulative_actual_index;
+    position.entry_fixed_index = market.cumulative_fixed_index;
     position.open_ts = clock.unix_timestamp;
     position.bump = ctx.bumps.position;
 
@@ -127,7 +128,8 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
         side,
         lots,
         collateral_deposited: collateral,
-        entry_rate_index: market.cumulative_rate_index,
+        entry_actual_index: market.cumulative_actual_index,
+        entry_fixed_index: market.cumulative_fixed_index,
         slot: clock.slot,
     });
 

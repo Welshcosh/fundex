@@ -8,6 +8,9 @@ use crate::state::{MarketState, RateOracle};
 /// Reads `lastFundingRate` directly from the Drift PerpMarket account at byte
 /// offset DRIFT_LAST_FUNDING_RATE_OFFSET, verifying the account is owned by
 /// the Drift program. No trusted off-chain input — fully on-chain verified.
+///
+/// After settlement, `fixed_rate` is updated toward the oracle EMA so that
+/// new positions always enter at the market's best estimate of fair value.
 pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
     let clock = Clock::get()?;
     let market = &mut ctx.accounts.market;
@@ -54,24 +57,41 @@ pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
     // Clamp to allowed range
     let actual_rate = actual_rate.clamp(-MAX_FIXED_RATE_ABS, MAX_FIXED_RATE_ABS);
 
-    // ── Update market & oracle ────────────────────────────────────────────────
-    let delta = actual_rate
-        .checked_sub(market.fixed_rate)
+    // ── Update cumulative indices ─────────────────────────────────────────────
+    // Accumulate actual and fixed separately so each position's PnL is isolated
+    // to the fixed_rate it agreed to at open, even if fixed_rate changes later.
+    let fixed_rate_this_settlement = market.fixed_rate;
+
+    market.cumulative_actual_index = market.cumulative_actual_index
+        .checked_add(actual_rate)
         .ok_or(FundexError::MathOverflow)?;
-    market.cumulative_rate_index = market.cumulative_rate_index
-        .checked_add(delta)
+    market.cumulative_fixed_index = market.cumulative_fixed_index
+        .checked_add(fixed_rate_this_settlement)
         .ok_or(FundexError::MathOverflow)?;
     market.last_settled_ts = clock.unix_timestamp;
 
+    // ── Update oracle EMA ─────────────────────────────────────────────────────
     oracle.update_ema(actual_rate);
     oracle.last_update_ts = clock.unix_timestamp;
+
+    // ── Update fixed_rate toward oracle EMA (Task 2) ─────────────────────────
+    // Once the oracle has enough samples, new positions enter at the EMA rate.
+    // Existing positions are unaffected — their PnL uses entry_fixed_index.
+    let new_fixed_rate = if oracle.num_samples >= MIN_ORACLE_SAMPLES {
+        let clamped = oracle.ema_funding_rate.clamp(-MAX_FIXED_RATE_ABS, MAX_FIXED_RATE_ABS);
+        market.fixed_rate = clamped;
+        clamped
+    } else {
+        market.fixed_rate
+    };
 
     emit!(FundingSettled {
         market: market.key(),
         actual_rate,
-        fixed_rate: market.fixed_rate,
-        delta,
-        new_cumulative_rate_index: market.cumulative_rate_index,
+        fixed_rate: fixed_rate_this_settlement,
+        new_fixed_rate,
+        new_cumulative_actual_index: market.cumulative_actual_index,
+        new_cumulative_fixed_index: market.cumulative_fixed_index,
         new_oracle_ema: oracle.ema_funding_rate,
         slot: clock.slot,
     });

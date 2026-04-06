@@ -25,7 +25,8 @@ pub struct PositionOpened {
     pub side: u8, // 0=FixedPayer, 1=FixedReceiver
     pub lots: u64,
     pub collateral_deposited: u64,
-    pub entry_rate_index: i64,
+    pub entry_actual_index: i64,
+    pub entry_fixed_index: i64,
     pub slot: u64,
 }
 
@@ -33,9 +34,10 @@ pub struct PositionOpened {
 pub struct FundingSettled {
     pub market: Pubkey,
     pub actual_rate: i64,
-    pub fixed_rate: i64,
-    pub delta: i64,
-    pub new_cumulative_rate_index: i64,
+    pub fixed_rate: i64,            // fixed_rate used this settlement
+    pub new_fixed_rate: i64,        // fixed_rate updated toward oracle EMA
+    pub new_cumulative_actual_index: i64,
+    pub new_cumulative_fixed_index: i64,
     pub new_oracle_ema: i64,
     pub slot: u64,
 }

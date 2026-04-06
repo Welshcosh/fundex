@@ -40,7 +40,8 @@ pub fn handler(
     market.notional_per_lot = 100_000_000; // 100 USDC (6 decimals)
     market.expiry_ts = clock.unix_timestamp + duration_secs;
     market.collateral_mint = ctx.accounts.collateral_mint.key();
-    market.cumulative_rate_index = 0;
+    market.cumulative_actual_index = 0;
+    market.cumulative_fixed_index = 0;
     market.last_settled_ts = clock.unix_timestamp;
     market.total_fixed_payer_lots = 0;
     market.total_fixed_receiver_lots = 0;

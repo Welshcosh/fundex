@@ -14,16 +14,20 @@ pub fn handler(ctx: Context<SyncPoolPnl>) -> Result<()> {
     let market_dur = ctx.accounts.market.duration_variant;
     let market_bump = ctx.accounts.market.bump;
     let market_notional = ctx.accounts.market.notional_per_lot;
-    let market_rate_index = ctx.accounts.market.cumulative_rate_index;
+    let market_actual_index = ctx.accounts.market.cumulative_actual_index;
+    let market_fixed_index = ctx.accounts.market.cumulative_fixed_index;
     let market_payer_lots = ctx.accounts.market.total_fixed_payer_lots;
     let market_receiver_lots = ctx.accounts.market.total_fixed_receiver_lots;
 
     let pool_bump = ctx.accounts.pool.bump;
-    let last_rate_index = ctx.accounts.pool.last_rate_index;
+    let last_actual_index = ctx.accounts.pool.last_actual_index;
+    let last_fixed_index = ctx.accounts.pool.last_fixed_index;
     let last_net_lots = ctx.accounts.pool.last_net_lots;
 
-    // rate_delta since last sync
-    let rate_delta = market_rate_index.wrapping_sub(last_rate_index);
+    // net rate delta since last sync = actual_delta - fixed_delta
+    let actual_delta = market_actual_index.wrapping_sub(last_actual_index);
+    let fixed_delta = market_fixed_index.wrapping_sub(last_fixed_index);
+    let rate_delta = actual_delta.wrapping_sub(fixed_delta);
 
     // pool_pnl = -(last_net_lots) * rate_delta * notional_per_lot / precision
     // Positive = pool gained; Negative = pool lost
@@ -83,7 +87,8 @@ pub fn handler(ctx: Context<SyncPoolPnl>) -> Result<()> {
 
     // Update pool sync state
     let pool = &mut ctx.accounts.pool;
-    pool.last_rate_index = market_rate_index;
+    pool.last_actual_index = market_actual_index;
+    pool.last_fixed_index = market_fixed_index;
     pool.last_net_lots = market_payer_lots as i64 - market_receiver_lots as i64;
 
     Ok(())
