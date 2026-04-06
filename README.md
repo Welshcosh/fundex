@@ -1,6 +1,6 @@
 # Fundex — Funding Rate Swap Market on Solana
 
-> **Seoulana WarmUp Hackathon 2026**
+> **Seoulana WarmUp Hackathon 2026** | **Colosseum 2026 — DeFi & Payments Track**
 
 Fundex is a fully on-chain funding rate swap (FRS) market built on Solana. Traders can go **long or short on perpetual funding rates** — hedging their perp positions or speculating on rate direction — across 16 markets (4 perps × 4 durations). A permissionless **LP Pool** provides deep liquidity as the counterparty for any net imbalance between payers and receivers.
 
@@ -99,7 +99,8 @@ PnL per settlement (Fixed Payer) = (variable_rate − fixed_rate) × notional
 | Initial margin | 10% of notional |
 | Maintenance margin | 5% of notional |
 | Liquidation reward | 3% of notional |
-| LP fee (imbalanced direction) | 0.3% of notional |
+| LP base fee | 0.3% of notional |
+| LP max fee (fully imbalanced) | 1.0% of notional |
 | Lot size | 100 USDC notional |
 | Durations | 7D / 30D / 90D / 180D |
 | Settlement interval | 1h (production) / unrestricted (devnet demo) |
@@ -120,7 +121,7 @@ The LP Pool solves the cold-start liquidity problem inherent to peer-to-peer fun
    - `payer_lots > receiver_lots` → pool is the virtual receiver for the difference
    - `receiver_lots > payer_lots` → pool is the virtual payer for the difference
 3. `sync_pool_pnl` (permissionless) settles accumulated P&L by transferring USDC between vaults
-4. **0.3% LP fee** is charged on any position that increases imbalance → goes directly to pool_vault
+4. **AMM-style dynamic fee** is charged on positions that increase imbalance → goes directly to pool_vault
 5. LPs withdraw their proportional share of the pool at any time
 
 **LP P&L:**
@@ -128,7 +129,68 @@ The LP Pool solves the cold-start liquidity problem inherent to peer-to-peer fun
 pool_pnl = -(net_lots) × rate_delta × notional_per_lot / precision
 ```
 
-LPs earn when the rate moves in their favor (opposite to the imbalanced side) plus the 0.3% fee stream.
+LPs earn when the rate moves in their favor (opposite to the imbalanced side) plus the dynamic fee stream.
+
+---
+
+## AMM-Style Dynamic Fee
+
+Fundex uses a dynamic LP fee modeled on Uniswap v3's concentrated liquidity fee tiers, but adapted for funding rate imbalance:
+
+```
+imbalance_ratio = |payer_lots − receiver_lots| / (payer_lots + receiver_lots)
+fee_bps = 30 + imbalance_ratio × 70
+```
+
+| Market State | Fee |
+|---|---|
+| Perfectly balanced | 0.3% (base) |
+| 50% imbalanced | ~0.65% |
+| Fully imbalanced (one side only) | 1.0% (max) |
+
+- **Imbalance-increasing position**: pays the dynamic fee
+- **Imbalance-reducing position**: pays 0.0% (incentivized to balance the market)
+
+This creates a natural AMM mechanism: arbitrageurs earn zero-fee entry on the minority side, while the imbalanced side faces increasing cost — naturally pushing the market back toward balance without active management.
+
+---
+
+## On-Chain Rate Verification
+
+Fundex reads funding rates **directly from Drift Protocol's PerpMarket accounts** on-chain — no trusted off-chain input.
+
+```
+settle_funding():
+  1. Verify drift_perp_market.owner == DRIFT_PROGRAM_ID
+  2. Read lastFundingRate (i64) at byte offset 480
+  3. Convert: actual_rate = lastFundingRate × 8 / 1_000
+     (Drift 1e9/hr → Fundex 1e6/8h)
+  4. Clamp to ±MAX_FIXED_RATE_ABS
+```
+
+The crank passes the Drift PerpMarket PDA as an account — the program verifies ownership and reads the rate trustlessly. This removes the need for a trusted oracle or off-chain rate relay.
+
+**Drift market mapping:**
+
+| Fundex perpIndex | Asset | Drift marketIndex | Devnet PDA |
+|---|---|---|---|
+| 0 | BTC-PERP | 1 | `2UZMvVT…` |
+| 1 | ETH-PERP | 2 | `25Eax9W…` |
+| 2 | SOL-PERP | 0 | `8UJgxai…` |
+| 3 | JTO-PERP | 20 | `FH6CkSY…` |
+
+---
+
+## Funding Rate Term Structure (Yield Curve)
+
+Fundex offers 4 duration maturities (7D / 30D / 90D / 180D) for each underlying. The fixed rates across durations form a **funding rate yield curve** — a novel primitive in DeFi.
+
+The markets page visualizes this curve in real-time, showing:
+- **Normal curve** — longer durations price in higher expected rates
+- **Inverted curve** — short-term rates exceed long-term (crowded payer positioning)
+- **Flat curve** — market expects stable rates
+
+This enables term-structure trading strategies (e.g. long short-end, short long-end) that are impossible on single-maturity protocols.
 
 ---
 
@@ -139,7 +201,7 @@ LPs earn when the rate moves in their favor (opposite to the imbalanced side) pl
 | On-chain | Anchor 0.32.1, Rust, Solana |
 | Frontend | Next.js 16, TypeScript, Tailwind CSS v4 |
 | Wallet | `@solana/wallet-adapter` |
-| Rate source | Drift Protocol v2 (mainnet, read-only) |
+| Rate source | Drift Protocol v2 — read on-chain directly |
 | USDC | Custom SPL mock mint (devnet) |
 
 ---
@@ -156,7 +218,7 @@ fundex/
 │   │   ├── withdraw_lp.rs
 │   │   └── sync_pool_pnl.rs
 │   ├── state.rs               # RateOracle, MarketState, Position, PoolState, LpPosition
-│   ├── constants.rs           # Margin bps, LP_FEE_BPS, seeds
+│   ├── constants.rs           # Margin bps, LP_FEE_BPS, DRIFT_PROGRAM_ID_BYTES, seeds
 │   └── errors.rs              # Custom error codes
 ├── tests/fundex.ts            # Integration tests
 ├── scripts/

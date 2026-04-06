@@ -34,6 +34,22 @@ pub const DURATION_30D: i64 = 30 * 24 * 3_600;
 pub const DURATION_90D: i64 = 90 * 24 * 3_600;
 pub const DURATION_180D: i64 = 180 * 24 * 3_600;
 
+// ─── Drift Protocol integration ──────────────────────────────────────────────
+// Same program ID on mainnet and devnet.
+pub const DRIFT_PROGRAM_ID_BYTES: [u8; 32] = [
+    // dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH
+    0x09, 0x54, 0xdb, 0xbe, 0x9e, 0xc9, 0x60, 0xc9,
+    0x8a, 0x7a, 0x29, 0x3f, 0xe2, 0x13, 0x36, 0x96,
+    0x6f, 0xe1, 0x80, 0xd1, 0x51, 0xae, 0x4b, 0x81,
+    0x79, 0x56, 0x1f, 0x89, 0x85, 0x4a, 0x53, 0xf6,
+];
+/// Byte offset of `amm.last_funding_rate` (i64) within a Drift PerpMarket account.
+/// Verified from Drift IDL: 8 (discriminator) + 32 (pubkey) + 440 (AMM prefix) = 480.
+pub const DRIFT_LAST_FUNDING_RATE_OFFSET: usize = 480;
+/// Drift stores funding rate with 1e9 precision (per hour).
+/// Conversion to our 1e6 precision (per 8h): rate * 8 / 1_000
+pub const DRIFT_FUNDING_RATE_PRECISION: i64 = 1_000_000_000;
+
 // ─── Rate bounds ─────────────────────────────────────────────────────────────
 // Max allowed fixed_rate: ±50% annualized ≈ ±5000 bps hourly in Drift units
 // Drift unit per 1% per hour ≈ 10_000

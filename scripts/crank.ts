@@ -16,12 +16,12 @@
 import * as anchor from "@coral-xyz/anchor";
 import { BN } from "@coral-xyz/anchor";
 import { Fundex } from "../target/types/fundex";
+import { Buffer } from "buffer";
 import { Keypair, Connection, PublicKey } from "@solana/web3.js";
 import {
   DriftClient,
   Wallet,
   FUNDING_RATE_PRECISION,
-  PRICE_PRECISION,
 } from "@drift-labs/sdk";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -61,35 +61,47 @@ function marketPda(perpIndex: number, duration: number, programId: PublicKey): P
   )[0];
 }
 
-// ─── Drift rate fetcher ───────────────────────────────────────────────────────
+// ─── Drift PerpMarket PDA ─────────────────────────────────────────────────────
+
+const DRIFT_PROGRAM_ID = new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH");
 
 /**
- * Returns the actual 8h funding rate in our Drift units (PRICE_PRECISION = 1e6).
- *
- * Drift stores lastFundingRate in FUNDING_RATE_PRECISION (1e9) as a per-hour rate.
- * Conversion: actualRate = lastFundingRate * 8h / FUNDING_RATE_PRECISION * DRIFT_PRICE_PRECISION
- *           = lastFundingRate * 8_000_000 / 1_000_000_000
- *           = lastFundingRate * 8 / 1_000
+ * Drift PerpMarket PDA = ["perp_market", marketIndex as u16 LE]
+ * Same on mainnet and devnet (same program ID).
  */
-async function fetchDriftRate(
+function driftPerpMarketPda(driftMarketIndex: number): PublicKey {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16LE(driftMarketIndex);
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("perp_market"), buf],
+    DRIFT_PROGRAM_ID
+  )[0];
+}
+
+// ─── Drift rate logger (for display only — on-chain reads rate directly) ─────
+
+/**
+ * Logs the current Drift lastFundingRate for monitoring purposes.
+ * The actual rate used for settlement is read on-chain by the program.
+ */
+async function logDriftRate(
   driftClient: DriftClient,
   perpIndex: number,
-): Promise<number> {
+): Promise<void> {
   const driftIndex = DRIFT_MARKET_INDEX[perpIndex];
-  if (driftIndex === undefined) throw new Error(`No Drift mapping for perpIndex ${perpIndex}`);
+  if (driftIndex === undefined) return;
 
-  const market = driftClient.getPerpMarketAccount(driftIndex);
-  if (!market) throw new Error(`Drift market ${driftIndex} not found`);
-
-  // lastFundingRate = rate per 1h in FUNDING_RATE_PRECISION (1e9)
-  // We settle hourly, so we use the per-hour rate directly
-  const lastRate: BN = market.amm.lastFundingRate;
-  const fundingRatePrec: BN = FUNDING_RATE_PRECISION;
-  const pricePrec = 1_000_000; // DRIFT_PRICE_PRECISION in our system
-
-  // actualRate (our units) = lastRate * pricePrec / fundingRatePrec
-  const actualRate = lastRate.muln(pricePrec).div(fundingRatePrec).toNumber();
-  return Math.max(1, Math.abs(actualRate)); // always positive (magnitude)
+  try {
+    const market = driftClient.getPerpMarketAccount(driftIndex);
+    if (!market) return;
+    const lastRate: BN = market.amm.lastFundingRate;
+    const fundingRatePrec: BN = FUNDING_RATE_PRECISION;
+    const pricePrec = 1_000_000;
+    const displayRate = lastRate.muln(pricePrec).div(fundingRatePrec).toNumber();
+    console.log(`  [Drift] perp=${perpIndex} lastFundingRate=${displayRate} (1e6 units)`);
+  } catch {
+    // Non-critical — just for display
+  }
 }
 
 // ─── Settlement loop ─────────────────────────────────────────────────────────
@@ -97,25 +109,16 @@ async function fetchDriftRate(
 async function settleAll(
   program: anchor.Program<Fundex>,
   driftClient: DriftClient,
-  rateCache: Map<number, number>,
 ) {
   const crankKey = (program.provider as anchor.AnchorProvider).wallet.publicKey;
   const now = new Date().toISOString();
 
   for (const perpIndex of PERP_INDICES) {
-    // Fetch and cache rate per perpIndex (same rate for all durations of same perp)
-    let actualRate = rateCache.get(perpIndex);
-    if (!actualRate) {
-      try {
-        actualRate = await fetchDriftRate(driftClient, perpIndex);
-        rateCache.set(perpIndex, actualRate);
-        console.log(`[${now}] Rate fetched perp=${perpIndex}: ${actualRate} (Drift live)`);
-      } catch (e: any) {
-        // Fallback: use last known rate or default
-        actualRate = rateCache.get(perpIndex) ?? 1000;
-        console.warn(`[${now}] Rate fetch failed perp=${perpIndex}: ${e.message?.slice(0, 60)} → using ${actualRate}`);
-      }
-    }
+    const driftIndex = DRIFT_MARKET_INDEX[perpIndex];
+    const driftPerpMarket = driftPerpMarketPda(driftIndex);
+
+    // Log current rate for monitoring (on-chain program reads it directly)
+    await logDriftRate(driftClient, perpIndex);
 
     const oracle = oraclePda(perpIndex, program.programId);
 
@@ -136,16 +139,16 @@ async function settleAll(
       const label = `perp=${perpIndex} dur=${duration}`;
 
       if (DRY_RUN) {
-        console.log(`[${now}] DRY_RUN settle_funding ${label} rate=${actualRate}`);
+        console.log(`[${now}] DRY_RUN settle_funding ${label} driftMarket=${driftPerpMarket.toBase58().slice(0, 8)}…`);
         continue;
       }
 
       try {
         const sig = await (program.methods as any)
-          .settleFunding(new BN(actualRate))
-          .accounts({ crank: crankKey, market, oracle })
+          .settleFunding()
+          .accounts({ crank: crankKey, market, oracle, driftPerpMarket })
           .rpc();
-        console.log(`[${now}] ✓ settle_funding ${label} rate=${actualRate} sig=${sig.slice(0, 8)}…`);
+        console.log(`[${now}] ✓ settle_funding ${label} sig=${sig.slice(0, 8)}…`);
       } catch (e: any) {
         if (e.message?.includes("TooSoon") || e.message?.includes("FundingIntervalNotElapsed")) {
           console.log(`[${now}] ~ ${label}: too soon, skipping`);
@@ -154,9 +157,6 @@ async function settleAll(
         }
       }
     }
-
-    // Clear rate cache after each perp (re-fetch next interval)
-    rateCache.delete(perpIndex);
   }
 }
 
@@ -190,11 +190,9 @@ async function main() {
   console.log(`Drift:    mainnet-beta (rate source)`);
   console.log("=".repeat(60));
 
-  const rateCache = new Map<number, number>();
-
   // Run immediately, then on interval
-  await settleAll(program, driftClient, rateCache);
-  setInterval(() => settleAll(program, driftClient, rateCache), INTERVAL_MS);
+  await settleAll(program, driftClient);
+  setInterval(() => settleAll(program, driftClient), INTERVAL_MS);
 }
 
 main().catch((e) => {

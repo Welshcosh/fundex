@@ -38,11 +38,8 @@ pub mod fundex {
         instructions::open_position::handler(ctx, side, lots)
     }
 
-    pub fn settle_funding(
-        ctx: Context<SettleFunding>,
-        actual_rate: i64,
-    ) -> Result<()> {
-        instructions::settle_funding::handler(ctx, actual_rate)
+    pub fn settle_funding(ctx: Context<SettleFunding>) -> Result<()> {
+        instructions::settle_funding::handler(ctx)
     }
 
     pub fn close_position(ctx: Context<ClosePosition>) -> Result<()> {

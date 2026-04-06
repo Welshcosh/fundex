@@ -1,34 +1,54 @@
 /**
  * crank-devnet.ts
  *
- * Devnet demo crank: settles funding every INTERVAL_MS using stable mock rates.
- * Designed for hackathon demos — no Drift mainnet dependency.
+ * Devnet demo crank: settles funding by passing the Drift PerpMarket account.
+ * The on-chain program reads lastFundingRate directly from the account — no
+ * off-chain rate input required.
  *
  * Usage:
  *   yarn crank:demo             # settle every 5 minutes
  *   INTERVAL_MS=60000 yarn crank:demo  # settle every 1 minute
  *   DRY_RUN=true yarn crank:demo       # log only
- *
- * Rates (Drift PRICE_PRECISION units, display = rate/10000 %):
- *   BTC-PERP: 8500  → 0.85% per settlement
- *   ETH-PERP: 5200  → 0.52%
- *   SOL-PERP: 12100 → 1.21%
- *   JTO-PERP: 3300  → 0.33%
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { BN } from "@coral-xyz/anchor";
 import { Fundex } from "../target/types/fundex";
 import { PublicKey } from "@solana/web3.js";
 
 const INTERVAL_MS = Number(process.env.INTERVAL_MS ?? 5 * 60 * 1000); // 5 min default
 const DRY_RUN = process.env.DRY_RUN === "true";
 
+// Drift program ID (same on mainnet and devnet)
+const DRIFT_PROGRAM_ID = new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH");
+
+/**
+ * Drift PerpMarket PDA = ["perp_market", marketIndex as u16 LE]
+ * These are the same on both mainnet and devnet.
+ */
+function driftPerpMarketPda(driftMarketIndex: number): PublicKey {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16LE(driftMarketIndex);
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("perp_market"), buf],
+    DRIFT_PROGRAM_ID
+  )[0];
+}
+
+/**
+ * Map our perpIndex → Drift's marketIndex
+ */
+const DRIFT_MARKET_INDEX: Record<number, number> = {
+  0: 1,  // BTC-PERP
+  1: 2,  // ETH-PERP
+  2: 0,  // SOL-PERP
+  3: 20, // JTO-PERP
+};
+
 const PERPS = [
-  { index: 0, name: "BTC-PERP", rate: 8500 },
-  { index: 1, name: "ETH-PERP", rate: 5200 },
-  { index: 2, name: "SOL-PERP", rate: 12100 },
-  { index: 3, name: "JTO-PERP", rate: 3300 },
+  { index: 0, name: "BTC-PERP" },
+  { index: 1, name: "ETH-PERP" },
+  { index: 2, name: "SOL-PERP" },
+  { index: 3, name: "JTO-PERP" },
 ];
 
 const DURATIONS = [0, 1, 2, 3];
@@ -54,6 +74,8 @@ async function settleAll(program: anchor.Program<Fundex>) {
 
   for (const perp of PERPS) {
     const oracle = oraclePda(perp.index, program.programId);
+    const driftIndex = DRIFT_MARKET_INDEX[perp.index];
+    const driftPerpMarket = driftPerpMarketPda(driftIndex);
 
     for (const dur of DURATIONS) {
       const market = marketPda(perp.index, dur, program.programId);
@@ -70,16 +92,16 @@ async function settleAll(program: anchor.Program<Fundex>) {
       const label = `${perp.name} ${["7D","30D","90D","180D"][dur]}`;
 
       if (DRY_RUN) {
-        console.log(`[${now}] DRY settle_funding ${label} rate=${perp.rate}`);
+        console.log(`[${now}] DRY settle_funding ${label} driftMarket=${driftPerpMarket.toBase58().slice(0, 8)}…`);
         continue;
       }
 
       try {
         const sig = await (program.methods as any)
-          .settleFunding(new BN(perp.rate))
-          .accounts({ crank, market, oracle })
+          .settleFunding()
+          .accounts({ crank, market, oracle, driftPerpMarket })
           .rpc();
-        console.log(`[${now}] ✓ ${label} rate=${perp.rate} sig=${sig.slice(0, 8)}…`);
+        console.log(`[${now}] ✓ ${label} sig=${sig.slice(0, 8)}…`);
       } catch (e: any) {
         if (e.message?.includes("TooSoon") || e.message?.includes("TooEarlyToSettle")) {
           console.log(`[${now}] ~ ${label}: too soon`);
@@ -97,7 +119,7 @@ async function main() {
   const program = anchor.workspace.Fundex as anchor.Program<Fundex>;
 
   console.log("=".repeat(60));
-  console.log("Fundex devnet demo crank");
+  console.log("Fundex devnet demo crank (on-chain Drift rate verification)");
   console.log("=".repeat(60));
   console.log(`Crank:    ${provider.wallet.publicKey.toBase58()}`);
   console.log(`Interval: ${INTERVAL_MS / 1000}s`);

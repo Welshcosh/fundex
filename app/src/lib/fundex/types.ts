@@ -1,4 +1,10 @@
-{
+/**
+ * Program IDL in camelCase format in order to be used in JS/TS.
+ *
+ * Note that this is only a type helper and is not the actual IDL. The original
+ * IDL can be found at `target/idl/fundex.json`.
+ */
+export type Fundex = {
   "address": "7UzjwBopedNuBzf5T4CYouJrGqgkQRnjtMAwjxdPFbQk",
   "metadata": {
     "name": "fundex",
@@ -8,7 +14,7 @@
   },
   "instructions": [
     {
-      "name": "close_position",
+      "name": "closePosition",
       "discriminator": [
         123,
         134,
@@ -87,18 +93,18 @@
           }
         },
         {
-          "name": "user_token_account",
+          "name": "userTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
     },
     {
-      "name": "deposit_lp",
+      "name": "depositLp",
       "discriminator": [
         83,
         107,
@@ -143,7 +149,7 @@
           }
         },
         {
-          "name": "lp_position",
+          "name": "lpPosition",
           "writable": true,
           "pda": {
             "seeds": [
@@ -175,7 +181,7 @@
           }
         },
         {
-          "name": "pool_vault",
+          "name": "poolVault",
           "writable": true,
           "pda": {
             "seeds": [
@@ -202,15 +208,15 @@
           }
         },
         {
-          "name": "user_token_account",
+          "name": "userTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -222,7 +228,7 @@
       ]
     },
     {
-      "name": "initialize_market",
+      "name": "initializeMarket",
       "discriminator": [
         35,
         35,
@@ -261,7 +267,7 @@
               },
               {
                 "kind": "arg",
-                "path": "perp_index"
+                "path": "perpIndex"
               }
             ]
           }
@@ -296,14 +302,14 @@
           }
         },
         {
-          "name": "collateral_mint"
+          "name": "collateralMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         },
         {
@@ -313,15 +319,15 @@
       ],
       "args": [
         {
-          "name": "perp_index",
+          "name": "perpIndex",
           "type": "u16"
         },
         {
-          "name": "duration_variant",
+          "name": "durationVariant",
           "type": "u8"
         },
         {
-          "name": "fixed_rate_override",
+          "name": "fixedRateOverride",
           "type": {
             "option": "i64"
           }
@@ -329,7 +335,7 @@
       ]
     },
     {
-      "name": "initialize_pool",
+      "name": "initializePool",
       "discriminator": [
         95,
         180,
@@ -371,7 +377,7 @@
           }
         },
         {
-          "name": "pool_vault",
+          "name": "poolVault",
           "writable": true,
           "pda": {
             "seeds": [
@@ -398,14 +404,14 @@
           }
         },
         {
-          "name": "collateral_mint"
+          "name": "collateralMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         },
         {
@@ -416,7 +422,7 @@
       "args": []
     },
     {
-      "name": "initialize_rate_oracle",
+      "name": "initializeRateOracle",
       "discriminator": [
         255,
         251,
@@ -456,25 +462,25 @@
               },
               {
                 "kind": "arg",
-                "path": "perp_index"
+                "path": "perpIndex"
               }
             ]
           }
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "perp_index",
+          "name": "perpIndex",
           "type": "u16"
         }
       ]
     },
     {
-      "name": "liquidate_position",
+      "name": "liquidatePosition",
       "discriminator": [
         187,
         74,
@@ -522,7 +528,7 @@
               {
                 "kind": "account",
                 "path": "position.user",
-                "account": "Position"
+                "account": "position"
               },
               {
                 "kind": "account",
@@ -554,18 +560,18 @@
           }
         },
         {
-          "name": "liquidator_token_account",
+          "name": "liquidatorTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
     },
     {
-      "name": "open_position",
+      "name": "openPosition",
       "discriminator": [
         135,
         128,
@@ -638,7 +644,7 @@
           }
         },
         {
-          "name": "pool_vault",
+          "name": "poolVault",
           "docs": [
             "Pool vault — receives LP fee when position increases imbalance"
           ],
@@ -668,15 +674,15 @@
           }
         },
         {
-          "name": "user_token_account",
+          "name": "userTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -692,7 +698,7 @@
       ]
     },
     {
-      "name": "settle_funding",
+      "name": "settleFunding",
       "discriminator": [
         11,
         251,
@@ -739,13 +745,13 @@
               {
                 "kind": "account",
                 "path": "market.perp_index",
-                "account": "MarketState"
+                "account": "marketState"
               }
             ]
           }
         },
         {
-          "name": "drift_perp_market",
+          "name": "driftPerpMarket",
           "docs": [
             "Drift PerpMarket account — owner verified on-chain against DRIFT_PROGRAM_ID_BYTES."
           ]
@@ -754,7 +760,7 @@
       "args": []
     },
     {
-      "name": "sync_pool_pnl",
+      "name": "syncPoolPnl",
       "discriminator": [
         97,
         64,
@@ -821,7 +827,7 @@
           }
         },
         {
-          "name": "pool_vault",
+          "name": "poolVault",
           "writable": true,
           "pda": {
             "seeds": [
@@ -848,14 +854,14 @@
           }
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
     },
     {
-      "name": "withdraw_lp",
+      "name": "withdrawLp",
       "discriminator": [
         225,
         221,
@@ -872,7 +878,7 @@
           "writable": true,
           "signer": true,
           "relations": [
-            "lp_position"
+            "lpPosition"
           ]
         },
         {
@@ -902,11 +908,11 @@
             ]
           },
           "relations": [
-            "lp_position"
+            "lpPosition"
           ]
         },
         {
-          "name": "lp_position",
+          "name": "lpPosition",
           "writable": true,
           "pda": {
             "seeds": [
@@ -938,7 +944,7 @@
           }
         },
         {
-          "name": "pool_vault",
+          "name": "poolVault",
           "writable": true,
           "pda": {
             "seeds": [
@@ -965,11 +971,11 @@
           }
         },
         {
-          "name": "user_token_account",
+          "name": "userTokenAccount",
           "writable": true
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
@@ -983,7 +989,7 @@
   ],
   "accounts": [
     {
-      "name": "LpPosition",
+      "name": "lpPosition",
       "discriminator": [
         105,
         241,
@@ -996,7 +1002,7 @@
       ]
     },
     {
-      "name": "MarketState",
+      "name": "marketState",
       "discriminator": [
         0,
         125,
@@ -1009,7 +1015,7 @@
       ]
     },
     {
-      "name": "PoolState",
+      "name": "poolState",
       "discriminator": [
         247,
         237,
@@ -1022,7 +1028,7 @@
       ]
     },
     {
-      "name": "Position",
+      "name": "position",
       "discriminator": [
         170,
         188,
@@ -1035,7 +1041,7 @@
       ]
     },
     {
-      "name": "RateOracle",
+      "name": "rateOracle",
       "discriminator": [
         122,
         53,
@@ -1050,7 +1056,7 @@
   ],
   "events": [
     {
-      "name": "FundingSettled",
+      "name": "fundingSettled",
       "discriminator": [
         250,
         241,
@@ -1063,7 +1069,7 @@
       ]
     },
     {
-      "name": "MarketInitialized",
+      "name": "marketInitialized",
       "discriminator": [
         134,
         160,
@@ -1076,7 +1082,7 @@
       ]
     },
     {
-      "name": "OracleInitialized",
+      "name": "oracleInitialized",
       "discriminator": [
         42,
         87,
@@ -1089,7 +1095,7 @@
       ]
     },
     {
-      "name": "PositionClosed",
+      "name": "positionClosed",
       "discriminator": [
         157,
         163,
@@ -1102,7 +1108,7 @@
       ]
     },
     {
-      "name": "PositionLiquidated",
+      "name": "positionLiquidated",
       "discriminator": [
         40,
         107,
@@ -1115,7 +1121,7 @@
       ]
     },
     {
-      "name": "PositionOpened",
+      "name": "positionOpened",
       "discriminator": [
         237,
         175,
@@ -1131,93 +1137,93 @@
   "errors": [
     {
       "code": 6000,
-      "name": "OracleNotReady",
+      "name": "oracleNotReady",
       "msg": "Oracle not warmed up — need at least MIN_ORACLE_SAMPLES settlements"
     },
     {
       "code": 6001,
-      "name": "MarketExpired",
+      "name": "marketExpired",
       "msg": "Market has already expired"
     },
     {
       "code": 6002,
-      "name": "MarketNotExpired",
+      "name": "marketNotExpired",
       "msg": "Market has not expired yet"
     },
     {
       "code": 6003,
-      "name": "InvalidDuration",
+      "name": "invalidDuration",
       "msg": "Invalid duration: must be 0=7d, 1=30d, 2=90d, 3=180d"
     },
     {
       "code": 6004,
-      "name": "InvalidSide",
+      "name": "invalidSide",
       "msg": "Invalid side: must be 0=FixedPayer, 1=FixedReceiver"
     },
     {
       "code": 6005,
-      "name": "InvalidLots",
+      "name": "invalidLots",
       "msg": "Lots must be greater than zero"
     },
     {
       "code": 6006,
-      "name": "TooEarlyToSettle",
+      "name": "tooEarlyToSettle",
       "msg": "Too early to settle — funding interval not elapsed"
     },
     {
       "code": 6007,
-      "name": "PositionAboveMaintenanceMargin",
+      "name": "positionAboveMaintenanceMargin",
       "msg": "Position is above maintenance margin — cannot liquidate"
     },
     {
       "code": 6008,
-      "name": "Unauthorized",
-      "msg": "Unauthorized"
+      "name": "unauthorized",
+      "msg": "unauthorized"
     },
     {
       "code": 6009,
-      "name": "MathOverflow",
+      "name": "mathOverflow",
       "msg": "Arithmetic overflow"
     },
     {
       "code": 6010,
-      "name": "InsufficientVaultBalance",
+      "name": "insufficientVaultBalance",
       "msg": "Insufficient vault balance to pay out"
     },
     {
       "code": 6011,
-      "name": "FixedRateOutOfBounds",
+      "name": "fixedRateOutOfBounds",
       "msg": "Fixed rate override exceeds allowed bounds"
     },
     {
       "code": 6012,
-      "name": "MarketInactive",
+      "name": "marketInactive",
       "msg": "Market is not active"
     },
     {
       "code": 6013,
-      "name": "InsufficientPoolBalance",
+      "name": "insufficientPoolBalance",
       "msg": "Insufficient pool vault balance"
     },
     {
       "code": 6014,
-      "name": "InsufficientShares",
+      "name": "insufficientShares",
       "msg": "Insufficient LP shares to withdraw"
     },
     {
       "code": 6015,
-      "name": "PoolEmpty",
+      "name": "poolEmpty",
       "msg": "Pool has no shares — cannot calculate withdrawal"
     },
     {
       "code": 6016,
-      "name": "InvalidDriftAccount",
+      "name": "invalidDriftAccount",
       "msg": "Drift PerpMarket account has wrong owner or is too small"
     }
   ],
   "types": [
     {
-      "name": "FundingSettled",
+      "name": "fundingSettled",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1226,11 +1232,11 @@
             "type": "pubkey"
           },
           {
-            "name": "actual_rate",
+            "name": "actualRate",
             "type": "i64"
           },
           {
-            "name": "fixed_rate",
+            "name": "fixedRate",
             "type": "i64"
           },
           {
@@ -1238,11 +1244,11 @@
             "type": "i64"
           },
           {
-            "name": "new_cumulative_rate_index",
+            "name": "newCumulativeRateIndex",
             "type": "i64"
           },
           {
-            "name": "new_oracle_ema",
+            "name": "newOracleEma",
             "type": "i64"
           },
           {
@@ -1253,7 +1259,7 @@
       }
     },
     {
-      "name": "LpPosition",
+      "name": "lpPosition",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1277,7 +1283,7 @@
       }
     },
     {
-      "name": "MarketInitialized",
+      "name": "marketInitialized",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1286,23 +1292,23 @@
             "type": "pubkey"
           },
           {
-            "name": "perp_index",
+            "name": "perpIndex",
             "type": "u16"
           },
           {
-            "name": "duration_variant",
+            "name": "durationVariant",
             "type": "u8"
           },
           {
-            "name": "fixed_rate",
+            "name": "fixedRate",
             "type": "i64"
           },
           {
-            "name": "expiry_ts",
+            "name": "expiryTs",
             "type": "i64"
           },
           {
-            "name": "notional_per_lot",
+            "name": "notionalPerLot",
             "type": "u64"
           },
           {
@@ -1313,56 +1319,56 @@
       }
     },
     {
-      "name": "MarketState",
+      "name": "marketState",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "perp_index",
+            "name": "perpIndex",
             "type": "u16"
           },
           {
-            "name": "duration_variant",
+            "name": "durationVariant",
             "type": "u8"
           },
           {
-            "name": "fixed_rate",
+            "name": "fixedRate",
             "type": "i64"
           },
           {
-            "name": "notional_per_lot",
+            "name": "notionalPerLot",
             "type": "u64"
           },
           {
-            "name": "expiry_ts",
+            "name": "expiryTs",
             "type": "i64"
           },
           {
-            "name": "collateral_mint",
+            "name": "collateralMint",
             "type": "pubkey"
           },
           {
-            "name": "cumulative_rate_index",
+            "name": "cumulativeRateIndex",
             "type": "i64"
           },
           {
-            "name": "last_settled_ts",
+            "name": "lastSettledTs",
             "type": "i64"
           },
           {
-            "name": "total_fixed_payer_lots",
+            "name": "totalFixedPayerLots",
             "type": "u64"
           },
           {
-            "name": "total_fixed_receiver_lots",
+            "name": "totalFixedReceiverLots",
             "type": "u64"
           },
           {
-            "name": "total_collateral",
+            "name": "totalCollateral",
             "type": "u64"
           },
           {
-            "name": "is_active",
+            "name": "isActive",
             "type": "bool"
           },
           {
@@ -1374,19 +1380,19 @@
             "type": "u8"
           },
           {
-            "name": "vault_bump",
+            "name": "vaultBump",
             "type": "u8"
           }
         ]
       }
     },
     {
-      "name": "OracleInitialized",
+      "name": "oracleInitialized",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "perp_index",
+            "name": "perpIndex",
             "type": "u16"
           },
           {
@@ -1401,7 +1407,7 @@
       }
     },
     {
-      "name": "PoolState",
+      "name": "poolState",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1410,15 +1416,15 @@
             "type": "pubkey"
           },
           {
-            "name": "total_shares",
+            "name": "totalShares",
             "type": "u64"
           },
           {
-            "name": "last_rate_index",
+            "name": "lastRateIndex",
             "type": "i64"
           },
           {
-            "name": "last_net_lots",
+            "name": "lastNetLots",
             "type": "i64"
           },
           {
@@ -1426,14 +1432,14 @@
             "type": "u8"
           },
           {
-            "name": "pool_vault_bump",
+            "name": "poolVaultBump",
             "type": "u8"
           }
         ]
       }
     },
     {
-      "name": "Position",
+      "name": "position",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1454,15 +1460,15 @@
             "type": "u64"
           },
           {
-            "name": "collateral_deposited",
+            "name": "collateralDeposited",
             "type": "u64"
           },
           {
-            "name": "entry_rate_index",
+            "name": "entryRateIndex",
             "type": "i64"
           },
           {
-            "name": "open_ts",
+            "name": "openTs",
             "type": "i64"
           },
           {
@@ -1473,7 +1479,7 @@
       }
     },
     {
-      "name": "PositionClosed",
+      "name": "positionClosed",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1494,11 +1500,11 @@
             "type": "u64"
           },
           {
-            "name": "collateral_deposited",
+            "name": "collateralDeposited",
             "type": "u64"
           },
           {
-            "name": "unrealized_pnl",
+            "name": "unrealizedPnl",
             "type": "i64"
           },
           {
@@ -1513,7 +1519,7 @@
       }
     },
     {
-      "name": "PositionLiquidated",
+      "name": "positionLiquidated",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1530,15 +1536,15 @@
             "type": "pubkey"
           },
           {
-            "name": "collateral_deposited",
+            "name": "collateralDeposited",
             "type": "u64"
           },
           {
-            "name": "unrealized_pnl",
+            "name": "unrealizedPnl",
             "type": "i64"
           },
           {
-            "name": "liquidator_reward",
+            "name": "liquidatorReward",
             "type": "u64"
           },
           {
@@ -1549,7 +1555,7 @@
       }
     },
     {
-      "name": "PositionOpened",
+      "name": "positionOpened",
       "type": {
         "kind": "struct",
         "fields": [
@@ -1570,11 +1576,11 @@
             "type": "u64"
           },
           {
-            "name": "collateral_deposited",
+            "name": "collateralDeposited",
             "type": "u64"
           },
           {
-            "name": "entry_rate_index",
+            "name": "entryRateIndex",
             "type": "i64"
           },
           {
@@ -1585,24 +1591,24 @@
       }
     },
     {
-      "name": "RateOracle",
+      "name": "rateOracle",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "perp_index",
+            "name": "perpIndex",
             "type": "u16"
           },
           {
-            "name": "ema_funding_rate",
+            "name": "emaFundingRate",
             "type": "i64"
           },
           {
-            "name": "last_update_ts",
+            "name": "lastUpdateTs",
             "type": "i64"
           },
           {
-            "name": "num_samples",
+            "name": "numSamples",
             "type": "u64"
           },
           {
@@ -1613,4 +1619,4 @@
       }
     }
   ]
-}
+};

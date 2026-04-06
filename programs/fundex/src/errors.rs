@@ -34,4 +34,6 @@ pub enum FundexError {
     InsufficientShares,
     #[msg("Pool has no shares — cannot calculate withdrawal")]
     PoolEmpty,
+    #[msg("Drift PerpMarket account has wrong owner or is too small")]
+    InvalidDriftAccount,
 }
