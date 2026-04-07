@@ -92,7 +92,7 @@ function TradePageInner() {
 
           {/* Chart + Stats + Positions */}
           <div className="flex flex-col md:flex-1 md:overflow-hidden">
-            <RateChart market={market} onchainData={onchainData} />
+            <RateChart market={market} onchainData={onchainData} duration={duration} />
             <MarketStatsBar market={market} duration={duration} onchainData={onchainData} />
             <div className="md:flex-1 md:overflow-auto">
               <PositionsTable />

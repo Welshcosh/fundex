@@ -69,4 +69,8 @@ pub mod fundex {
     pub fn close_pool(ctx: Context<ClosePool>) -> Result<()> {
         instructions::close_pool::handler(ctx)
     }
+
+    pub fn close_market(ctx: Context<CloseMarket>) -> Result<()> {
+        instructions::close_market::handler(ctx)
+    }
 }

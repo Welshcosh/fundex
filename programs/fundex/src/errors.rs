@@ -36,4 +36,6 @@ pub enum FundexError {
     PoolEmpty,
     #[msg("Drift PerpMarket account has wrong owner or is too small")]
     InvalidDriftAccount,
+    #[msg("Market still has collateral — close all positions first")]
+    MarketHasOpenPositions,
 }

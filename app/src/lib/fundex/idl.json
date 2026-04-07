@@ -8,6 +8,60 @@
   },
   "instructions": [
     {
+      "name": "close_market",
+      "discriminator": [
+        88,
+        154,
+        248,
+        186,
+        48,
+        14,
+        123,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "close_pool",
       "discriminator": [
         140,
@@ -1292,6 +1346,11 @@
       "code": 6016,
       "name": "InvalidDriftAccount",
       "msg": "Drift PerpMarket account has wrong owner or is too small"
+    },
+    {
+      "code": 6017,
+      "name": "MarketHasOpenPositions",
+      "msg": "Market still has collateral — close all positions first"
     }
   ],
   "types": [

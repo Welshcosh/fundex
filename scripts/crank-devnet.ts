@@ -116,7 +116,11 @@ async function settleAll(program: anchor.Program<Fundex>) {
 async function main() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-  const program = anchor.workspace.Fundex as anchor.Program<Fundex>;
+
+  // Load IDL directly from file to avoid workspace version mismatch after redeploy
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const IDL = require("../target/idl/fundex.json");
+  const program = new anchor.Program(IDL, provider) as anchor.Program<Fundex>;
 
   console.log("=".repeat(60));
   console.log("Fundex devnet demo crank (on-chain Drift rate verification)");
@@ -126,11 +130,29 @@ async function main() {
   console.log(`Dry run:  ${DRY_RUN}`);
   console.log("=".repeat(60));
 
-  await settleAll(program);
-  setInterval(() => settleAll(program), INTERVAL_MS);
+  // Initial run — non-fatal
+  try {
+    await settleAll(program);
+  } catch (e: any) {
+    console.error("Initial settle error (continuing):", e?.message ?? e);
+  }
+
+  // Keep running indefinitely — errors in settleAll are already caught per-market
+  setInterval(async () => {
+    try {
+      await settleAll(program);
+    } catch (e: any) {
+      console.error("Settle loop error (continuing):", e?.message ?? e);
+    }
+  }, INTERVAL_MS);
 }
 
+// Global safety net — log but don't exit
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+
 main().catch((e) => {
-  console.error(e);
+  console.error("Fatal startup error:", e);
   process.exit(1);
 });
