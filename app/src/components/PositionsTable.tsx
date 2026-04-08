@@ -7,13 +7,48 @@ import { DURATION_LABELS, Side, MARKETS } from "@/lib/constants";
 import { FUNDEX_PROGRAM_ID } from "@/lib/fundex/constants";
 import { formatUSD, formatRate } from "@/lib/utils";
 import { NOTIONAL_PER_LOT_LAMPORTS } from "@/lib/fundex/constants";
-import { usePositions } from "@/hooks/usePositions";
+import { usePositions, OnchainPosition } from "@/hooks/usePositions";
 import { useOracleRates } from "@/hooks/useOracleRates";
 import { useFundexClient } from "@/hooks/useFundexClient";
+import { useRiskScore } from "@/hooks/useRiskScore";
 import { toast } from "./Toast";
 
 const TABS = ["Positions", "History"] as const;
 const lam = (n: number) => n / 1_000_000;
+
+// ─── Risk Badge ───────────────────────────────────────────────────────────────
+
+function RiskBadge({ pos, oracleRate }: { pos: OnchainPosition; oracleRate: number | undefined }) {
+  const risk = useRiskScore(pos, oracleRate);
+
+  if (risk.status === "idle" || risk.status === "loading") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 border border-white/20 border-t-white/50 rounded-full animate-spin" />
+        <span className="text-[10px]" style={{ color: "#4a4568" }}>scoring…</span>
+      </div>
+    );
+  }
+  if (risk.status === "error") {
+    return <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.04)", color: "#6b6890" }}>N/A</span>;
+  }
+
+  const { score, reason, level } = risk.data;
+  const color = level === "high" ? "#f87171" : level === "medium" ? "#fbbf24" : "#2dd4bf";
+  const bg = level === "high" ? "rgba(248,113,113,0.1)" : level === "medium" ? "rgba(251,191,36,0.1)" : "rgba(45,212,191,0.1)";
+
+  return (
+    <div className="flex items-center gap-1.5" title={reason}>
+      <div className="w-8 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
+      </div>
+      <span className="text-[11px] font-mono font-semibold px-1 py-0.5 rounded"
+        style={{ background: bg, color }}>
+        {score}
+      </span>
+    </div>
+  );
+}
 
 function daysLeft(expiryTs: number): string {
   const diff = expiryTs - Math.floor(Date.now() / 1000);
@@ -148,13 +183,16 @@ export function PositionsTable() {
 
       {/* ── Positions Tab ── */}
       {tab === "Positions" && positions.length > 0 && (
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-max">
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-              {["Market", "Side", "Size", "Entry Rate", "Current Rate", "PnL", "Margin", "Expiry", "Liq. Est.", ""].map((h) => (
+              {["Market", "Side", "Size", "Entry Rate", "Current Rate", "PnL", "Margin", "Expiry", "Liq. Est.", "AI Risk"].map((h) => (
                 <th key={h} className="px-4 py-2.5 text-left font-medium whitespace-nowrap"
                   style={{ color: "#4a4568" }}>{h}</th>
               ))}
+              <th className="py-2.5 text-left font-medium whitespace-nowrap sticky right-0 px-3"
+                style={{ color: "#4a4568", background: "#0d0c1a" }} />
             </tr>
           </thead>
           <tbody>
@@ -235,8 +273,13 @@ export function PositionsTable() {
                     {p.settlementsToLiq != null ? `~${p.settlementsToLiq}` : "—"}
                   </td>
 
-                  {/* Close */}
+                  {/* AI Risk */}
                   <td className="px-4 py-3">
+                    <RiskBadge pos={p} oracleRate={currentRate} />
+                  </td>
+
+                  {/* Close */}
+                  <td className="py-3 px-3 sticky right-0" style={{ background: "#0d0c1a" }}>
                     <button onClick={() => handleClose(posKey)} disabled={isClosing}
                       className="px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors"
                       style={{
@@ -255,6 +298,7 @@ export function PositionsTable() {
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       {tab === "Positions" && !loading && positions.length === 0 && (

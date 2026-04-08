@@ -19,7 +19,7 @@ export interface RatePoint {
 export function useRateHistory(
   perpIndex: number,
   duration: DurationVariant,
-  limit = 60
+  limit = 30
 ): { points: RatePoint[]; loading: boolean } {
   const { connection } = useConnection();
   const [points, setPoints] = useState<RatePoint[]>([]);
@@ -44,18 +44,25 @@ export function useRateHistory(
       // Get recent signatures where the market account was written (settleFunding touches it)
       const sigs = await connection.getSignaturesForAddress(mkt, { limit });
 
-      // Fetch all transactions in parallel
-      const txResults = await Promise.all(
-        sigs.map((s) =>
-          connection
-            .getTransaction(s.signature, {
-              maxSupportedTransactionVersion: 0,
-              commitment: "confirmed",
-            })
-            .then((tx) => ({ blockTime: s.blockTime, tx }))
-            .catch(() => null)
-        )
-      );
+      // Fetch transactions in small batches to avoid RPC rate limits
+      const BATCH = 5;
+      const txResults: ({ blockTime: number | null | undefined; tx: Awaited<ReturnType<typeof connection.getTransaction>> } | null)[] = [];
+      for (let i = 0; i < sigs.length; i += BATCH) {
+        const batch = sigs.slice(i, i + BATCH);
+        const results = await Promise.all(
+          batch.map((s) =>
+            connection
+              .getTransaction(s.signature, {
+                maxSupportedTransactionVersion: 0,
+                commitment: "confirmed",
+              })
+              .then((tx) => ({ blockTime: s.blockTime, tx }))
+              .catch(() => null)
+          )
+        );
+        txResults.push(...results);
+        if (i + BATCH < sigs.length) await new Promise(r => setTimeout(r, 300));
+      }
 
       const parser = new EventParser(FUNDEX_PROGRAM_ID, program.coder);
       const collected: RatePoint[] = [];
