@@ -194,6 +194,63 @@ This enables term-structure trading strategies (e.g. long short-end, short long-
 
 ---
 
+## AI-Powered Trading Intelligence
+
+Fundex integrates Claude AI to provide intelligent trading assistance — a first for on-chain funding rate products.
+
+### AI Rate Advisor
+
+An ML ensemble model trained on **Binance perpetual funding rate history** (2019–present) predicts rate direction and recommends optimal fixed rates.
+
+```
+Input:  Current oracle rate + market stats (MA, volatility, cross-market signals)
+     ↓
+ML:    Ridge regression (magnitude) + Logistic classifier (direction)
+     ↓
+Signal: Only when both models agree with confidence ≥ 65%
+     ↓
+Output: Predicted rate, direction (↑/↓/→), confidence, reasoning (via Claude)
+```
+
+| Duration | Directional Accuracy | Coverage |
+|----------|---------------------|----------|
+| 7-day    | **77.5%**           | ~60%     |
+| 30-day   | **78.7%**           | ~55%     |
+
+**Features used**: z-scores, momentum (5d/14d), volatility ratio, trend, rate acceleration, BTC cross-market lead signal, one-hot market encoding.
+
+Model coefficients are exported as JSON and run as dot-product inference in JS — no Python runtime needed in production.
+
+### AI Risk Scoring
+
+Each open position is scored 0–100 by Claude, considering margin ratio, rate direction vs. position side, OI imbalance, and time to expiry.
+
+| Score | Level | Meaning |
+|-------|-------|---------|
+| 0–30  | Low   | Healthy margin, favorable rate direction |
+| 31–60 | Medium | Watch closely — rate or margin pressure |
+| 61–100 | High | Near liquidation or severe adverse conditions |
+
+### AI Trading Assistant
+
+A conversational chat interface (bottom-right floating panel) that answers questions about:
+- Current market conditions and rate outlook
+- Trading strategies (hedging, speculation)
+- How funding rate swaps work
+- Position-specific advice
+
+The assistant sees **live market context** (current variable/fixed rates, OI imbalance) from whatever market the user is viewing.
+
+### API Routes
+
+| Route | Model | Purpose |
+|-------|-------|---------|
+| `POST /api/ai/rate-advisor` | ML ensemble + Claude Haiku | Rate prediction + reasoning |
+| `POST /api/ai/risk` | Claude Haiku | Position risk scoring |
+| `POST /api/ai/chat` | Claude Haiku | Trading assistant chat |
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
@@ -202,6 +259,8 @@ This enables term-structure trading strategies (e.g. long short-end, short long-
 | Frontend | Next.js 16, TypeScript, Tailwind CSS v4 |
 | Wallet | `@solana/wallet-adapter` |
 | Rate source | Drift Protocol v2 — read on-chain directly |
+| AI | Claude Haiku (Anthropic) + custom ML ensemble |
+| ML Training | Python, scikit-learn, Binance API |
 | USDC | Custom SPL mock mint (devnet) |
 
 ---
@@ -211,7 +270,7 @@ This enables term-structure trading strategies (e.g. long short-end, short long-
 ```
 fundex/
 ├── programs/fundex/src/       # Anchor program (Rust)
-│   ├── instructions/          # 10 instruction handlers
+│   ├── instructions/          # 13 instruction handlers
 │   │   ├── open_position.rs   # Includes 0.3% LP fee logic
 │   │   ├── initialize_pool.rs
 │   │   ├── deposit_lp.rs
@@ -227,15 +286,17 @@ fundex/
 │   ├── crank-devnet.ts        # Demo crank (mock rates, 1-min intervals)
 │   ├── crank.ts               # Production crank (live Drift rates)
 │   └── liquidator.ts          # Permissionless liquidator bot
+│   ├── train-rate-model.py    # ML model training (Binance funding rates)
+│   └── validate-rate-model.py # Walk-forward backtesting
 ├── sdk/src/                   # TypeScript client SDK
 │   ├── client.ts              # All instructions + fetch methods incl. LP
 │   └── pda.ts                 # PDA derivation helpers
 └── app/                       # Next.js frontend
     └── src/
-        ├── app/               # Pages: /, /trade, /pool, /markets, /portfolio
-        ├── components/        # TradeHeader, OrderPanel, RateBook, etc.
-        ├── hooks/             # useMarketData, usePositions, useOracleRates
-        └── lib/fundex/        # Client SDK wrapper, constants, IDL
+        ├── app/               # Pages + API routes (/api/ai/*)
+        ├── components/        # TradeHeader, OrderPanel, RateAdvisor, TradingAssistant, etc.
+        ├── hooks/             # useMarketData, usePositions, useRiskScore
+        └── lib/fundex/        # Client SDK, constants, IDL, rate-model.json
 ```
 
 ---
@@ -329,9 +390,11 @@ anchor test
 ```bash
 NEXT_PUBLIC_USDC_MINT=BqLbRiRvDNMzryGjtAh9qn44iM4F2VPD3Df7m4MsV5e4
 ADMIN_SECRET_KEY=[...your admin keypair JSON array...]
+ANTHROPIC_API_KEY=sk-ant-...your-api-key...
 ```
 
-`ADMIN_SECRET_KEY` is required for the `/api/faucet` endpoint to mint devnet USDC.
+- `ADMIN_SECRET_KEY` — required for the `/api/faucet` endpoint to mint devnet USDC
+- `ANTHROPIC_API_KEY` — required for AI features (Rate Advisor, Risk Score, Trading Assistant)
 
 ---
 
@@ -347,6 +410,15 @@ ADMIN_SECRET_KEY=[...your admin keypair JSON array...]
 6. Click **"Open Fixed Payer"** → confirm wallet transaction
 7. Watch PnL update in the Positions tab as the crank settles every minute
 8. Click **"Close"** to realise PnL and withdraw collateral
+
+### AI Features
+
+1. On the trade page, check the **AI Rate Advisor** panel in the sidebar — it shows predicted rate direction, recommended fixed rate, and confidence level
+2. In the **Positions** tab, each open position shows an **AI Risk Score** (0–100) with color-coded badge
+3. Click the **AI Assistant** button (bottom-right) to ask questions like:
+   - "Should I go long or short on SOL funding rates?"
+   - "How can I hedge my perp position with Fundex?"
+   - "What's the current market outlook for BTC rates?"
 
 ### Providing Liquidity
 

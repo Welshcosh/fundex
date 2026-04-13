@@ -8,6 +8,8 @@ import { OrderPanel } from "@/components/OrderPanel";
 import { PositionsTable } from "@/components/PositionsTable";
 import { RateBook } from "@/components/RateBook";
 import { MarketStatsBar } from "@/components/MarketStatsBar";
+import { RateAdvisor } from "@/components/RateAdvisor";
+import { TradingAssistant } from "@/components/TradingAssistant";
 import { MARKETS, DurationVariant } from "@/lib/constants";
 import { useMarketData } from "@/hooks/useMarketData";
 import { formatRate } from "@/lib/utils";
@@ -112,6 +114,7 @@ function TradePageInner() {
                 receiverLots={onchainData.receiverLots}
                 live={onchainData.live}
               />
+              <RateAdvisor market={market} duration={duration} onchainData={onchainData} />
               <div className="md:overflow-auto">
                 <OrderPanel market={market} duration={duration} onchainData={onchainData} />
               </div>
@@ -120,6 +123,8 @@ function TradePageInner() {
 
         </div>
       </div>
+
+      <TradingAssistant market={market} duration={duration} onchainData={onchainData} />
     </div>
   );
 }
