@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-04-14T08:26:53.571Z",
+  "monthsBack": 12,
+  "markets": [
+    {
+      "market": "SOL-PERP",
+      "records": 8467,
+      "periodDays": 352.75,
+      "firstTs": 1744588800,
+      "lastTs": 1775066400,
+      "avgHourlyRatePctOfPrice": -0.000574,
+      "avgAnnualizedPct": -5.03,
+      "stdAnnualizedPct": 20.766,
+      "medianAnnualizedPct": -3.311,
+      "p05AnnualizedPct": -31.167,
+      "p95AnnualizedPct": 17.538,
+      "pctHoursPositive": 39.79,
+      "realizedLongPnlPerDollarNotional": -0.048615,
+      "realizedLongAprPct": -5.03,
+      "totalPeriodRevenueUsd": 9878462.05
+    },
+    {
+      "market": "BTC-PERP",
+      "records": 7080,
+      "periodDays": 294.96,
+      "firstTs": 1744588800,
+      "lastTs": 1770073200,
+      "avgHourlyRatePctOfPrice": 0.000591,
+      "avgAnnualizedPct": 5.177,
+      "stdAnnualizedPct": 10.692,
+      "medianAnnualizedPct": 5.778,
+      "p05AnnualizedPct": -11.414,
+      "p95AnnualizedPct": 23.05,
+      "pctHoursPositive": 75.68,
+      "realizedLongPnlPerDollarNotional": 0.041843,
+      "realizedLongAprPct": 5.178,
+      "totalPeriodRevenueUsd": 3004416.99
+    }
+  ]
+}

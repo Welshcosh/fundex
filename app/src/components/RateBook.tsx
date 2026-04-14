@@ -69,7 +69,7 @@ export function RateBook({ market, onchainData }: { market: MarketInfo; onchainD
             {asks.map((a, i) => (
               <div key={`ask-${i}`} className="relative grid grid-cols-2 px-4 py-[3.5px] cursor-pointer">
                 <div className="absolute inset-0" style={{ background: `linear-gradient(to left, rgba(248,113,113,0.08) ${(a.size / maxSize) * 100}%, transparent ${(a.size / maxSize) * 100}%)` }} />
-                <span className="font-mono relative" style={{ color: "#f87171" }}>+{formatRate(a.rate)}</span>
+                <span className="font-mono relative" style={{ color: "#f87171" }}>{formatRate(a.rate)}</span>
                 <span className="text-right font-mono relative" style={{ color: "#4a4568" }}>{a.size}</span>
               </div>
             ))}
@@ -82,7 +82,7 @@ export function RateBook({ market, onchainData }: { market: MarketInfo; onchainD
             <div className="flex items-center gap-2">
               <span style={{ color: "#4a4568" }}>Fixed</span>
               <span className="font-mono font-semibold" style={{ color: "#ede9fe" }}>
-                +{formatRate(fixedRate)}
+                {formatRate(fixedRate)}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -97,7 +97,7 @@ export function RateBook({ market, onchainData }: { market: MarketInfo; onchainD
             {bids.map((b, i) => (
               <div key={`bid-${i}`} className="relative grid grid-cols-2 px-4 py-[3.5px] cursor-pointer">
                 <div className="absolute inset-0" style={{ background: `linear-gradient(to left, rgba(45,212,191,0.08) ${(b.size / maxSize) * 100}%, transparent ${(b.size / maxSize) * 100}%)` }} />
-                <span className="font-mono relative" style={{ color: "#2dd4bf" }}>+{formatRate(b.rate)}</span>
+                <span className="font-mono relative" style={{ color: "#2dd4bf" }}>{formatRate(b.rate)}</span>
                 <span className="text-right font-mono relative" style={{ color: "#4a4568" }}>{b.size}</span>
               </div>
             ))}

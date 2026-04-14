@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { MarketInfo, DurationVariant, DURATION_LABELS } from "@/lib/constants";
 import { OnchainMarketData } from "@/hooks/useMarketData";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 const SUGGESTIONS = [
   "Should I go long or short on funding rates?",
@@ -35,11 +32,18 @@ interface Props {
 
 export function TradingAssistant({ market, duration, onchainData }: Props) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: "/api/ai/chat" }),
+    []
+  );
+
+  const { messages, sendMessage, status, error } = useChat({ transport });
+
+  const loading = status === "submitted" || status === "streaming";
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -53,40 +57,20 @@ export function TradingAssistant({ market, duration, onchainData }: Props) {
     }
   }, [open]);
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback((text: string) => {
     if (!text.trim() || loading) return;
+    const marketContext = onchainData.live ? {
+      market: market.symbol,
+      duration: duration === 0 ? 7 : duration === 1 ? 30 : duration === 2 ? 90 : 180,
+      variableRate: onchainData.variableRate,
+      fixedRate: onchainData.fixedRate,
+      payerLots: onchainData.payerLots,
+      receiverLots: onchainData.receiverLots,
+    } : undefined;
 
-    const userMsg: ChatMessage = { role: "user", content: text.trim() };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    sendMessage({ text: text.trim() }, { body: { marketContext } });
     setInput("");
-    setLoading(true);
-
-    try {
-      const marketContext = onchainData.live ? {
-        market: market.symbol,
-        duration: duration === 0 ? 7 : duration === 1 ? 30 : duration === 2 ? 90 : 180,
-        variableRate: onchainData.variableRate,
-        fixedRate: onchainData.fixedRate,
-        payerLots: onchainData.payerLots,
-        receiverLots: onchainData.receiverLots,
-      } : undefined;
-
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages.slice(-10), marketContext }),
-      });
-
-      if (!res.ok) throw new Error();
-      const { reply } = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
-    } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I'm having trouble connecting. Please try again." }]);
-    } finally {
-      setLoading(false);
-    }
-  }, [messages, loading, market, duration, onchainData]);
+  }, [loading, sendMessage, market, duration, onchainData]);
 
   // Floating button when closed
   if (!open) {
@@ -179,29 +163,44 @@ export function TradingAssistant({ market, duration, onchainData }: Props) {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className="max-w-[85%] px-3 py-2 rounded-xl text-[13px] leading-relaxed"
-              style={msg.role === "user" ? {
-                background: "linear-gradient(135deg, #9945ff, #7c3aed)",
-                color: "#fff",
-                borderBottomRightRadius: 4,
-              } : {
-                background: "rgba(255,255,255,0.04)",
-                color: "#d1d5db",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderBottomLeftRadius: 4,
-              }}>
-              {msg.content}
+        {messages.map(msg => {
+          const text = msg.parts
+            .map(p => (p.type === "text" ? p.text : ""))
+            .join("");
+          if (!text) return null;
+          return (
+            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[85%] px-3 py-2 rounded-xl text-[13px] leading-relaxed whitespace-pre-wrap"
+                style={msg.role === "user" ? {
+                  background: "linear-gradient(135deg, #9945ff, #7c3aed)",
+                  color: "#fff",
+                  borderBottomRightRadius: 4,
+                } : {
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#d1d5db",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderBottomLeftRadius: 4,
+                }}>
+                {text}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
-        {loading && (
+        {status === "submitted" && (
           <div className="flex justify-start">
             <div className="px-3 py-2 rounded-xl"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderBottomLeftRadius: 4 }}>
               <TypingDots />
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] px-3 py-2 rounded-xl text-[13px]"
+              style={{ background: "rgba(239,68,68,0.08)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.2)", borderBottomLeftRadius: 4 }}>
+              Sorry, I&apos;m having trouble connecting. Please try again.
             </div>
           </div>
         )}

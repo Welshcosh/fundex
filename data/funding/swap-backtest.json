@@ -1,0 +1,74 @@
+{
+  "generatedAt": "2026-04-14T08:34:48.632Z",
+  "windowDays": 30,
+  "trailingDays": 30,
+  "premiumBps": 200,
+  "results": [
+    {
+      "symbol": "SOL-PERP",
+      "hedger": {
+        "meanCostAprPct": -4.618111178670948,
+        "hourlyVolAnnualizedPct": 20.766979674094785,
+        "worstMonthCostAprPct": 4.324562295864838,
+        "bestMonthCostAprPct": -21.260420881390306,
+        "worstSurpriseAprPct": 21.090993374470862,
+        "avgAbsSurpriseAprPct": 7.355670023265378,
+        "worstMonthDollarSurpriseOn10k": 173.350630475103,
+        "avgMonthDollarSurpriseOn10k": 60.457561835057895
+      },
+      "lpFair": {
+        "policy": "fair (no premium)",
+        "windows": 10,
+        "realizedAprPct": 0.6456389863798188,
+        "stdevAnnualizedPct": 2.9937612546427363,
+        "sharpe": 0.2156614811480239,
+        "maxDrawdownPct": -1.9052136539939182,
+        "winRatePct": 50,
+        "correlationToPrice": -0.2290590579552587
+      },
+      "lpPriced": {
+        "policy": "trailing mean + 200bps premium",
+        "windows": 10,
+        "realizedAprPct": 2.645638986379818,
+        "stdevAnnualizedPct": 2.9937612546427363,
+        "sharpe": 0.883717424786947,
+        "maxDrawdownPct": -1.5793222774276476,
+        "winRatePct": 60,
+        "correlationToPrice": -0.2290590579552587
+      }
+    },
+    {
+      "symbol": "BTC-PERP",
+      "hedger": {
+        "meanCostAprPct": 5.30469213953766,
+        "hourlyVolAnnualizedPct": 10.692917167413205,
+        "worstMonthCostAprPct": 14.617004235064345,
+        "bestMonthCostAprPct": -4.050607779689646,
+        "worstSurpriseAprPct": 9.491301289665596,
+        "avgAbsSurpriseAprPct": 4.979246610927365,
+        "worstMonthDollarSurpriseOn10k": 78.01069553149804,
+        "avgMonthDollarSurpriseOn10k": 40.92531461036191
+      },
+      "lpFair": {
+        "policy": "fair (no premium)",
+        "windows": 8,
+        "realizedAprPct": -0.13061915622029585,
+        "stdevAnnualizedPct": 1.788274472755792,
+        "sharpe": -0.07304200681174366,
+        "maxDrawdownPct": -0.8980462236655424,
+        "winRatePct": 62.5,
+        "correlationToPrice": -0.41646330735663495
+      },
+      "lpPriced": {
+        "policy": "trailing mean + 200bps premium",
+        "windows": 8,
+        "realizedAprPct": 1.869380843779704,
+        "stdevAnnualizedPct": 1.788274472755792,
+        "sharpe": 1.045354542750322,
+        "maxDrawdownPct": -0.615723393671149,
+        "winRatePct": 62.5,
+        "correlationToPrice": -0.41646330735663495
+      }
+    }
+  ]
+}

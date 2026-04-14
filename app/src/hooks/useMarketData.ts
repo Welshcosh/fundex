@@ -91,9 +91,9 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Auto-refresh every 30s
+  // Auto-refresh every 45s
   useEffect(() => {
-    const id = setInterval(fetch, 30_000);
+    const id = setInterval(fetch, 45_000);
     return () => clearInterval(id);
   }, [fetch]);
 

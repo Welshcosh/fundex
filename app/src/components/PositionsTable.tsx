@@ -5,12 +5,13 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { X, ExternalLink } from "lucide-react";
 import { DURATION_LABELS, Side, MARKETS } from "@/lib/constants";
 import { FUNDEX_PROGRAM_ID } from "@/lib/fundex/constants";
-import { formatUSD, formatRate } from "@/lib/utils";
+import { formatUSD, formatRate, formatRelativeTime, truncateError } from "@/lib/utils";
 import { NOTIONAL_PER_LOT_LAMPORTS } from "@/lib/fundex/constants";
 import { usePositions, OnchainPosition } from "@/hooks/usePositions";
 import { useOracleRates } from "@/hooks/useOracleRates";
 import { useFundexClient } from "@/hooks/useFundexClient";
 import { useRiskScore } from "@/hooks/useRiskScore";
+import { useMarketData } from "@/hooks/useMarketData";
 import { toast } from "./Toast";
 
 const TABS = ["Positions", "History"] as const;
@@ -19,7 +20,14 @@ const lam = (n: number) => n / 1_000_000;
 // ─── Risk Badge ───────────────────────────────────────────────────────────────
 
 function RiskBadge({ pos, oracleRate }: { pos: OnchainPosition; oracleRate: number | undefined }) {
-  const risk = useRiskScore(pos, oracleRate);
+  // Pull live OI for the position's (market, duration) so the risk LLM can reason
+  // about imbalance instead of seeing 0/0 and hallucinating "balanced OI".
+  const market = MARKETS[pos.perpIndex] ?? MARKETS[0];
+  const marketData = useMarketData(market, pos.duration);
+  const oi = marketData.live
+    ? { payerLots: marketData.payerLots, receiverLots: marketData.receiverLots }
+    : undefined;
+  const risk = useRiskScore(pos, oracleRate, oi);
 
   if (risk.status === "idle" || risk.status === "loading") {
     return (
@@ -148,7 +156,7 @@ export function PositionsTable() {
       toast("success", "Position closed", pos.marketName, sig);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast("error", "Close failed", msg.slice(0, 80));
+      toast("error", "Close failed", truncateError(msg));
     } finally {
       setClosing(null);
     }
@@ -233,12 +241,13 @@ export function PositionsTable() {
 
                   {/* Entry Rate */}
                   <td className="px-4 py-3 font-mono" style={{ color: "#4a4568" }}>
-                    +{formatRate(p.fixedRate)}
+                    {formatRate(p.fixedRate)}
                   </td>
 
                   {/* Current Rate */}
-                  <td className="px-4 py-3 font-mono" style={{ color: "#2dd4bf" }}>
-                    {currentRate != null ? `+${formatRate(currentRate)}` : "—"}
+                  <td className="px-4 py-3 font-mono"
+                    style={{ color: currentRate == null ? "#4a4568" : currentRate >= 0 ? "#2dd4bf" : "#f87171" }}>
+                    {currentRate != null ? formatRate(currentRate) : "—"}
                   </td>
 
                   {/* PnL */}
@@ -336,9 +345,8 @@ export function PositionsTable() {
                   const isClose = h.action === "Close Position";
                   const isLiq = h.action === "Liquidation";
                   const color = isOpen ? "#2dd4bf" : isClose ? "#c4b5fd" : isLiq ? "#f87171" : "#8b87a8";
-                  const timeStr = h.blockTime
-                    ? new Date(h.blockTime * 1000).toLocaleString()
-                    : "—";
+                  const timeStr = h.blockTime ? formatRelativeTime(h.blockTime) : "—";
+                  const timeTitle = h.blockTime ? new Date(h.blockTime * 1000).toLocaleString() : undefined;
                   return (
                     <tr key={h.sig}
                       style={{ borderBottom: "1px solid rgba(255,255,255,0.02)" }}
@@ -350,7 +358,7 @@ export function PositionsTable() {
                           {h.action}
                         </span>
                       </td>
-                      <td className="px-5 py-3 font-mono" style={{ color: "#4a4568" }}>{timeStr}</td>
+                      <td className="px-5 py-3 font-mono" style={{ color: "#4a4568" }} title={timeTitle}>{timeStr}</td>
                       <td className="px-5 py-3">
                         <a href={`https://explorer.solana.com/tx/${h.sig}?cluster=devnet`}
                           target="_blank" rel="noopener noreferrer"

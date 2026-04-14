@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { MARKETS, DurationVariant } from "@/lib/constants";
@@ -35,28 +35,29 @@ export function usePositions(): PositionsState {
   const { publicKey } = useWallet();
   const [positions, setPositions] = useState<OnchainPosition[]>([]);
   const [loading, setLoading] = useState(false);
+  const inFlightRef = useRef(false);
 
   const fetch = useCallback(async () => {
     if (!client || !publicKey) { setPositions([]); return; }
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setLoading(true);
     try {
-      // Fetch oracle EMA for all perps in parallel
-      const oracleRates = Object.fromEntries(
-        await Promise.all(
-          MARKETS.map(async (m) => {
-            const oracle = await client.fetchOracle(m.perpIndex);
-            return [m.perpIndex, oracle?.emaFundingRate ?? m.baseRate] as const;
-          })
-        )
-      );
+      // Fetch oracles sequentially to stagger RPC burst
+      const oracleRates: Record<number, number> = {};
+      for (const m of MARKETS) {
+        const oracle = await client.fetchOracle(m.perpIndex);
+        oracleRates[m.perpIndex] = oracle?.emaFundingRate ?? m.baseRate;
+      }
 
-      const results = await Promise.all(
-        MARKETS.flatMap((market) =>
+      // Fetch positions sequentially per market (4 at a time max) to avoid RPC burst
+      const results: (OnchainPosition | null)[] = [];
+      for (const market of MARKETS) {
+        const batch = await Promise.all(
           ALL_DURATIONS.map(async (duration) => {
             const pos = await client.fetchPosition(publicKey, market.perpIndex, duration);
             if (!pos) return null;
 
-            // Settlements to liq calculation
             const variableRate = oracleRates[market.perpIndex] ?? market.baseRate;
             const pnlPerSettlement =
               (variableRate - pos.fixedRate) * pos.lots * pos.notionalPerLot / DRIFT_PRICE_PRECISION;
@@ -77,19 +78,21 @@ export function usePositions(): PositionsState {
               settlementsToLiq,
             } satisfies OnchainPosition;
           })
-        )
-      );
+        );
+        results.push(...batch);
+      }
       setPositions(results.filter((p): p is OnchainPosition => p !== null));
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }, [client, publicKey]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  // Auto-refresh every 30s
+  // Auto-refresh every 60s
   useEffect(() => {
-    const id = setInterval(fetch, 30_000);
+    const id = setInterval(fetch, 60_000);
     return () => clearInterval(id);
   }, [fetch]);
 

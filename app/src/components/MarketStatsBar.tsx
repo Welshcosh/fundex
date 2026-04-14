@@ -39,19 +39,19 @@ export function MarketStatsBar({ market, duration, onchainData, expiryTs }: Prop
   const stats = [
     {
       label: "Spread",
-      value: `${spreadPositive ? "+" : ""}${formatRate(spread)}`,
-      sub: `${formatRateAnnualized(spread)} APY`,
+      value: formatRate(spread),
+      sub: `${formatRateAnnualized(spread)} APR`,
       color: spreadPositive ? "#2dd4bf" : "#f87171",
     },
     {
       label: "Variable Rate",
-      value: `+${formatRate(variableRate)}`,
-      sub: `${formatRateAnnualized(variableRate)} APY`,
-      color: "#2dd4bf",
+      value: formatRate(variableRate),
+      sub: `${formatRateAnnualized(variableRate)} APR`,
+      color: variableRate >= 0 ? "#2dd4bf" : "#f87171",
     },
     {
       label: "Fixed Rate",
-      value: `+${formatRate(fixedRate)}`,
+      value: formatRate(fixedRate),
       sub: DURATION_FULL_LABELS[duration],
       color: "#c4b5fd",
     },

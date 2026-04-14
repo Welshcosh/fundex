@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText, Output } from "ai";
+import { z } from "zod";
+import { MODEL_HAIKU, GATEWAY_FALLBACK_ORDER } from "@/lib/fundex/ai-models";
+import { rateToAprPct } from "@/lib/utils";
 
 export interface RiskInput {
   // Position
@@ -7,9 +10,9 @@ export interface RiskInput {
   marginRatioBps: number;    // current margin ratio in bps
   unrealizedPnl: number;     // USDC lamports
   collateralDeposited: number; // USDC lamports
-  fixedRate: number;         // fixed rate in Drift precision (1e6 = 0.0001%)
+  fixedRate: number;         // Fundex precision (10_000 = 1% per 8h interval)
   // Market
-  currentOracleRate: number; // current EMA funding rate
+  currentOracleRate: number; // current EMA funding rate (same Fundex precision)
   totalFixedPayerLots: number;
   totalFixedReceiverLots: number;
   daysToExpiry: number;
@@ -29,31 +32,58 @@ In Fundex:
 - Fixed Payer (side=0): pays fixed rate, receives variable funding rate. Profits when actual funding rate > fixed rate.
 - Fixed Receiver (side=1): receives fixed rate, pays variable funding rate. Profits when actual funding rate < fixed rate.
 - marginRatioBps: current collateral / notional in basis points. Below 500bps (~5%) is dangerous, below 200bps is near liquidation.
-- fixedRate and currentOracleRate are in Drift precision where 1,000,000 = 0.0001% per hour.
+- Rates shown below are annualized APR (Fundex settles every 8h; APR = per-8h × 1095).
 - OI imbalance: large difference between fixedPayerLots and fixedReceiverLots means the protocol may adjust fixed rates.
 
 Evaluate the position risk from 0 (safe) to 100 (about to be liquidated).
-Consider: margin ratio, rate direction vs position side, OI imbalance, days to expiry, unrealized PnL trend.
+Consider: margin ratio, rate direction vs position side, OI imbalance, days to expiry, unrealized PnL trend.`;
 
-Respond with ONLY valid JSON in this exact format:
-{"score": <integer 0-100>, "reason": "<one sentence, max 80 chars>"}`;
+const RiskSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  reason: z.string(),
+});
+
+const globalForCache = globalThis as unknown as {
+  __fundexRiskCache?: Map<string, { value: RiskOutput; expiresAt: number }>;
+};
+const riskCache = globalForCache.__fundexRiskCache ?? new Map<string, { value: RiskOutput; expiresAt: number }>();
+globalForCache.__fundexRiskCache = riskCache;
+const RISK_TTL_MS = 10 * 60 * 1000;
+
+function riskCacheKey(input: RiskInput): string {
+  const bucket = (n: number, size: number) => Math.round(n / size) * size;
+  const total = input.totalFixedPayerLots + input.totalFixedReceiverLots;
+  const payerPctBucket = total > 0
+    ? Math.round((input.totalFixedPayerLots / total) * 10)
+    : -1;
+  return [
+    "v2",
+    input.side,
+    bucket(input.marginRatioBps, 50),
+    bucket(input.fixedRate, 1_000_000),
+    bucket(input.currentOracleRate, 1_000_000),
+    bucket(input.daysToExpiry, 0.5),
+    bucket(input.notionalUsd, 100),
+    payerPctBucket,
+  ].join("|");
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      console.error("AI risk error: ANTHROPIC_API_KEY not set");
-      return NextResponse.json({ error: "AI unavailable" }, { status: 500 });
-    }
-    const client = new Anthropic({ apiKey });
     const input: RiskInput = await req.json();
+
+    const cacheKey = riskCacheKey(input);
+    const cached = riskCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.value satisfies RiskOutput);
+    }
 
     const sideLabel = input.side === 0 ? "Fixed Payer" : "Fixed Receiver";
     const pnlUsd = (input.unrealizedPnl / 1_000_000).toFixed(2);
     const collUsd = (input.collateralDeposited / 1_000_000).toFixed(2);
     const marginPct = (input.marginRatioBps / 100).toFixed(1);
-    const fixedRatePct = (input.fixedRate / 1_000_000 * 100).toFixed(4);
-    const oraclePct = (input.currentOracleRate / 1_000_000 * 100).toFixed(4);
+    const fixedRateApr = rateToAprPct(input.fixedRate).toFixed(2);
+    const oracleApr = rateToAprPct(input.currentOracleRate).toFixed(2);
     const rateVsPosition = input.side === 0
       ? input.currentOracleRate > input.fixedRate ? "favorable" : "unfavorable"
       : input.currentOracleRate < input.fixedRate ? "favorable" : "unfavorable";
@@ -64,30 +94,34 @@ export async function POST(req: NextRequest) {
 - Unrealized PnL: $${pnlUsd} USDC
 - Collateral deposited: $${collUsd} USDC
 - Notional: $${input.notionalUsd.toFixed(0)} USDC
-- Fixed rate agreed: ${fixedRatePct}%/hr
-- Current oracle rate: ${oraclePct}%/hr (${rateVsPosition} for this position)
+- Fixed rate agreed: ${fixedRateApr}% APR
+- Current oracle rate: ${oracleApr}% APR (${rateVsPosition} for this position)
 - OI: ${input.totalFixedPayerLots} payer lots vs ${input.totalFixedReceiverLots} receiver lots
 - Days to expiry: ${input.daysToExpiry.toFixed(1)}
 
-Provide risk score and reason.`;
+Provide risk score and a one-sentence reason (max 80 chars).`;
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 100,
+    const { output } = await generateText({
+      model: MODEL_HAIKU,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
+      prompt: userMessage,
+      output: Output.object({ schema: RiskSchema }),
+      providerOptions: {
+        gateway: {
+          tags: ["feature:risk"],
+          order: [...GATEWAY_FALLBACK_ORDER],
+          cacheControl: "max-age=60",
+        },
+      },
     });
 
-    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
-    // Strip markdown code fences if present
-    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-
-    // Parse JSON response
-    const parsed = JSON.parse(text) as { score: number; reason: string };
-    const score = Math.max(0, Math.min(100, Math.round(parsed.score)));
+    const score = Math.max(0, Math.min(100, Math.round(output.score)));
+    const reason = output.reason.trim().slice(0, 160);
     const level: RiskOutput["level"] = score >= 61 ? "high" : score >= 31 ? "medium" : "low";
 
-    return NextResponse.json({ score, reason: parsed.reason, level } satisfies RiskOutput);
+    const result: RiskOutput = { score, reason, level };
+    riskCache.set(cacheKey, { value: result, expiresAt: Date.now() + RISK_TTL_MS });
+    return NextResponse.json(result satisfies RiskOutput);
   } catch (e) {
     console.error("AI risk error:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "AI unavailable" }, { status: 500 });

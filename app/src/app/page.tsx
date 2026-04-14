@@ -83,8 +83,8 @@ function LiveMarketCard({ market }: { market: typeof MARKETS[number] }) {
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <div className="font-mono font-bold text-sm" style={{ color: "#2dd4bf" }}>+{formatRate(rate)}</div>
-        <div className="text-xs font-mono mt-0.5" style={{ color: "#4a4568" }}>{formatRateAnnualized(rate)} APY</div>
+        <div className="font-mono font-bold text-sm" style={{ color: rate >= 0 ? "#2dd4bf" : "#f87171" }}>{formatRate(rate)}</div>
+        <div className="text-xs font-mono mt-0.5" style={{ color: "#4a4568" }}>{formatRateAnnualized(rate)} APR</div>
       </div>
     </Link>
   );
@@ -94,7 +94,7 @@ function LiveMarketCard({ market }: { market: typeof MARKETS[number] }) {
 const FEATURES = [
   { icon: TrendingUp, title: "Long or Short Funding Rates",  color: "#2dd4bf", desc: "Take a directional view on perpetual funding rates. Fixed Payer profits when rates rise; Fixed Receiver profits when rates fall." },
   { icon: Lock,       title: "Lock In a Fixed Rate",         color: "#c4b5fd", desc: "Hedge your perp positions by receiving a fixed rate and paying the variable funding rate — eliminating funding cost uncertainty." },
-  { icon: RefreshCw,  title: "Oracle-Driven Pricing",        color: "#9945ff", desc: "Fixed rates are set by an on-chain EMA oracle tracking live Drift Protocol funding rates. No central party controls pricing." },
+  { icon: RefreshCw,  title: "Drift-Native Rate Feed",       color: "#9945ff", desc: "Funding rates are read directly from Drift Protocol's PerpMarket account on-chain, verified by program-owner check. No off-chain oracle or rate relay." },
   { icon: Shield,     title: "Fully On-Chain",               color: "#43b4ca", desc: "Every position, settlement, and liquidation happens on Solana. Permissionless, non-custodial, and transparent." },
   { icon: Zap,        title: "Capital Efficient",            color: "#fbbf24", desc: "Open positions with just 10% initial margin. Up to 10× leverage on funding rate exposure across 4 expiry durations." },
   { icon: BarChart2,  title: "Multiple Durations",           color: "#f87171", desc: "Trade 7D, 30D, 90D, and 180D markets. Longer durations provide more stable exposure to persistent funding trends." },
@@ -133,8 +133,8 @@ export default function LandingPage() {
             {" "}on Solana
           </h1>
 
-          <p className="text-base sm:text-lg mb-10" style={{ color: "#6b6890", maxWidth: "540px" }}>
-            Fundex is a fully on-chain funding rate swap market. Go long or short on perpetual funding rates — hedge your perp book or speculate on rate direction.
+          <p className="text-base sm:text-lg mb-10" style={{ color: "#6b6890", maxWidth: "580px" }}>
+            A Solana-native reference implementation of a fixed-for-floating funding rate swap. Reads Drift Protocol funding rates on-chain, settles in sub-200k CU, priced against a 12-month backtest.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -208,10 +208,10 @@ export default function LandingPage() {
         <div className="relative rounded-3xl p-10 sm:p-14 text-center overflow-hidden"
           style={{ background: "linear-gradient(135deg,rgba(153,69,255,0.12),rgba(67,180,202,0.08))", border: "1px solid rgba(153,69,255,0.2)" }}>
           <h2 className="text-2xl sm:text-3xl font-black mb-4" style={{ color: "#ede9fe" }}>
-            Start Trading Funding Rates
+            Try It on Devnet
           </h2>
-          <p className="text-sm sm:text-base mb-8 mx-auto" style={{ color: "#6b6890", maxWidth: "400px" }}>
-            Connect your wallet, get devnet USDC from the faucet, and open your first position in under a minute.
+          <p className="text-sm sm:text-base mb-8 mx-auto" style={{ color: "#6b6890", maxWidth: "440px" }}>
+            Connect your wallet, mint devnet USDC from the faucet, and open a Fixed Payer or Fixed Receiver position in under a minute. No real funds at risk.
           </p>
           <Link href="/trade"
             className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold text-sm"

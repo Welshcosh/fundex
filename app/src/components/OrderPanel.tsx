@@ -8,7 +8,7 @@ import {
   INITIAL_MARGIN_BPS, MAINT_MARGIN_BPS, DURATION_FULL_LABELS,
 } from "@/lib/constants";
 import { NOTIONAL_PER_LOT_LAMPORTS, USDC_MINT } from "@/lib/fundex/constants";
-import { formatRate, formatUSD } from "@/lib/utils";
+import { formatRate, formatRateAnnualized, formatUSD, truncateError } from "@/lib/utils";
 import { useFundexClient } from "@/hooks/useFundexClient";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { OnchainMarketData } from "@/hooks/useMarketData";
@@ -54,6 +54,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
 
   const totalRequired = collateralLamports + Math.ceil(lots * NOTIONAL_PER_LOT_LAMPORTS * dynamicFeeBps / 10_000);
   const insufficient = connected && totalRequired > balanceLamports;
+  const shortfallUsd = insufficient ? (totalRequired - balanceLamports) / 1_000_000 : 0;
   const isLong = side === Side.FixedPayer;
 
   const handleFaucet = useCallback(async () => {
@@ -71,7 +72,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
       toast("success", "Faucet", `1,000 USDC sent to your wallet`, data.sig);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast("error", "Faucet failed", msg.slice(0, 80));
+      toast("error", "Faucet failed", truncateError(msg));
     } finally {
       setFaucetLoading(false);
     }
@@ -101,7 +102,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast("error", "Transaction failed", msg.slice(0, 80));
+      toast("error", "Transaction failed", truncateError(msg));
     } finally {
       setLoading(false);
     }
@@ -190,12 +191,17 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
             ["Notional", formatUSD(notional), "#8b87a8"],
             ["Collateral (10%)", formatUSD(collateralUsd), "#8b87a8"],
             [`AMM fee (${(dynamicFeeBps / 100).toFixed(1)}%)`, formatUSD(lpFeeUsd), increasesImbalance ? "#fbbf24" : "#4a4568"],
-            ["Fixed rate", `+${formatRate(fixedRate)} / 8h`, "#6b6890"],
-            ["Variable rate", `+${formatRate(variableRate)} / 8h`, "#2dd4bf"],
-          ].map(([label, value, color]) => (
-            <div key={label as string} className="flex items-center justify-between">
+            ["Fixed rate", `${formatRate(fixedRate)} / 8h`, "#6b6890", `${formatRateAnnualized(fixedRate)} APR`],
+            ["Variable rate", `${formatRate(variableRate)} / 8h`, variableRate >= 0 ? "#2dd4bf" : "#f87171", `${formatRateAnnualized(variableRate)} APR`],
+          ].map(([label, value, color, sub]) => (
+            <div key={label as string} className="flex items-start justify-between gap-2">
               <span style={{ color: "#4a4568" }}>{label}</span>
-              <span className="font-mono" style={{ color: color as string }}>{value}</span>
+              <div className="flex flex-col items-end">
+                <span className="font-mono" style={{ color: color as string }}>{value}</span>
+                {sub && (
+                  <span className="font-mono text-[10px] mt-0.5" style={{ color: "#2d2b45" }}>{sub}</span>
+                )}
+              </div>
             </div>
           ))}
 
@@ -267,7 +273,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Confirming…
               </span>
-            ) : insufficient ? "Insufficient balance" : (
+            ) : insufficient ? `Need ${formatUSD(shortfallUsd)} more USDC` : (
               `Open ${isLong ? "Fixed Payer" : "Fixed Receiver"} · ${lots} lot${lots > 1 ? "s" : ""}`
             )}
           </button>

@@ -1,8 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import MODEL_DATA from "@/lib/fundex/rate-model.json";
+import { MODEL_HAIKU, GATEWAY_FALLBACK_ORDER } from "@/lib/fundex/ai-models";
+import { rateToAprPct } from "@/lib/utils";
 
-const SYSTEM_PROMPT = `You are the Fundex AI Trading Assistant — an expert on funding rate swaps (FRS) on Solana.
+export const maxDuration = 30;
+
+interface MarketContext {
+  market: string;
+  duration: number;
+  variableRate: number;
+  fixedRate: number;
+  payerLots: number;
+  receiverLots: number;
+}
+
+const BASE_SYSTEM_PROMPT = `You are the Fundex AI Trading Assistant — an expert on funding rate swaps (FRS) on Solana.
 
 ## What is Fundex?
 Fundex is a fully on-chain funding rate swap market. Traders can go long or short on perpetual funding rates across 4 perps (BTC, ETH, SOL, JTO) × 4 durations (7D, 30D, 90D, 180D) = 16 markets.
@@ -16,9 +28,12 @@ Fundex is a fully on-chain funding rate swap market. Traders can go long or shor
 
 ## Market context:
 ${(() => {
+  // market_stats values are Binance fundingRate as decimal per 8h settlement.
+  // Annualize to APR percent: rate * 1095 (8h periods/yr) * 100.
+  const per8hToAprPct = (r: number) => r * 1095 * 100;
   const stats = MODEL_DATA.market_stats as Record<string, { current_rate?: number; ma7: number; ma30: number; std30: number }>;
   return Object.entries(stats).map(([m, s]) => {
-    return `- ${m}: 7d MA ${s.ma7.toFixed(2)}% APY, 30d MA ${s.ma30.toFixed(2)}% APY, volatility ±${s.std30.toFixed(2)}%`;
+    return `- ${m}: 7d MA ${per8hToAprPct(s.ma7).toFixed(2)}% APR, 30d MA ${per8hToAprPct(s.ma30).toFixed(2)}% APR, volatility ±${per8hToAprPct(s.std30).toFixed(2)}%`;
   }).join("\n");
 })()}
 
@@ -29,60 +44,42 @@ ${(() => {
 - You can suggest specific sides (Fixed Payer or Fixed Receiver) and durations
 - Reference historical rate stats to support your analysis
 - If unsure, say so — never fabricate data
-- Format rates as APY percentages for readability
+- Format rates as APR percentages for readability
 - Do NOT use markdown headers or bullet lists unless the user asks for a detailed breakdown`;
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
+function buildSystemPrompt(ctx?: MarketContext): string {
+  if (!ctx) return BASE_SYSTEM_PROMPT;
+  const varApr = rateToAprPct(ctx.variableRate);
+  const fixApr = rateToAprPct(ctx.fixedRate);
+  const total = ctx.payerLots + ctx.receiverLots;
+  const payerPct = total > 0 ? ((ctx.payerLots / total) * 100).toFixed(0) : "50";
+  return `${BASE_SYSTEM_PROMPT}
+
+## Live market (user is viewing):
+- Market: ${ctx.market}-PERP | Duration: ${ctx.duration}D
+- Variable rate (oracle): ${varApr.toFixed(2)}% APR
+- Fixed rate (market): ${fixApr.toFixed(2)}% APR
+- OI: ${ctx.payerLots} payer lots (${payerPct}%) vs ${ctx.receiverLots} receiver lots
+- Spread: ${(varApr - fixApr).toFixed(2)}% APR`;
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "AI unavailable" }, { status: 500 });
-    }
-    const client = new Anthropic({ apiKey });
+export async function POST(req: Request) {
+  const { messages, marketContext } = await req.json() as {
+    messages: UIMessage[];
+    marketContext?: MarketContext;
+  };
 
-    const { messages, marketContext } = await req.json() as {
-      messages: ChatMessage[];
-      marketContext?: {
-        market: string;
-        duration: number;
-        variableRate: number;
-        fixedRate: number;
-        payerLots: number;
-        receiverLots: number;
-      };
-    };
+  const result = streamText({
+    model: MODEL_HAIKU,
+    system: buildSystemPrompt(marketContext),
+    messages: await convertToModelMessages(messages),
+    providerOptions: {
+      gateway: {
+        tags: ["feature:chat"],
+        order: [...GATEWAY_FALLBACK_ORDER],
+      },
+    },
+  });
 
-    // Inject live market data if available
-    let systemPrompt = SYSTEM_PROMPT;
-    if (marketContext) {
-      const varApy = (marketContext.variableRate / 1_000_000) * 0.0001 * 24 * 365;
-      const fixApy = (marketContext.fixedRate / 1_000_000) * 0.0001 * 24 * 365;
-      const total = marketContext.payerLots + marketContext.receiverLots;
-      const payerPct = total > 0 ? ((marketContext.payerLots / total) * 100).toFixed(0) : "50";
-      systemPrompt += `\n\n## Live market (user is viewing):
-- Market: ${marketContext.market}-PERP | Duration: ${marketContext.duration}D
-- Variable rate (oracle): ${varApy.toFixed(4)}% APY
-- Fixed rate (market): ${fixApy.toFixed(4)}% APY
-- OI: ${marketContext.payerLots} payer lots (${payerPct}%) vs ${marketContext.receiverLots} receiver lots
-- Spread: ${(varApy - fixApy).toFixed(4)}% APY`;
-    }
-
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
-    });
-
-    const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
-    return NextResponse.json({ reply: text });
-  } catch (e) {
-    console.error("Chat error:", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "Chat unavailable" }, { status: 500 });
-  }
+  return result.toUIMessageStreamResponse();
 }

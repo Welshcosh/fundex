@@ -1,28 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateText, Output } from "ai";
+import { z } from "zod";
+import * as ort from "onnxruntime-node";
+import { join } from "path";
 import MODEL_DATA from "@/lib/fundex/rate-model.json";
+import { MODEL_HAIKU, GATEWAY_FALLBACK_ORDER } from "@/lib/fundex/ai-models";
+import { rateToAprPct, truncateError } from "@/lib/utils";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+const ReasoningSchema = z.object({
+  reasoning: z.string(),
+});
+
+const globalForAdvisor = globalThis as unknown as {
+  __fundexAdvisorCache?: Map<string, { value: RateAdvisorOutput; expiresAt: number }>;
+};
+const advisorCache = globalForAdvisor.__fundexAdvisorCache ?? new Map<string, { value: RateAdvisorOutput; expiresAt: number }>();
+globalForAdvisor.__fundexAdvisorCache = advisorCache;
+const ADVISOR_TTL_MS = 15 * 60 * 1000;
 
 export interface RateAdvisorInput {
   market: "BTC" | "ETH" | "SOL" | "JTO";
   duration: 7 | 30 | 90 | 180;
-  currentOracleRate: number;   // Drift precision (1e6 = 0.0001%/hr)
+  currentOracleRate: number;   // Fundex precision (1e6 = 100% per 8h interval)
 }
 
 export interface RateAdvisorOutput {
-  predictedRatePerHour: number;   // Drift precision
-  recommendedFixedRate: number;   // Drift precision
+  predictedRatePerHour: number;
+  recommendedFixedRate: number;
   direction: "up" | "down" | "neutral";
   confidence: "high" | "medium" | "low";
-  dirAccuracy: number;            // historical directional accuracy (0–1)
+  dirAccuracy: number;
   reasoning: string;
 }
 
 // ── JS inference helpers ─────────────────────────────────────────────────────
 
 const MARKET_LIST = ["BTC", "ETH", "SOL"];
-const THRESHOLD   = (MODEL_DATA as { ensemble_threshold: number }).ensemble_threshold ?? 0.65;
 
 type EnsembleModel = {
   type: "ensemble";
@@ -35,6 +48,8 @@ type EnsembleModel = {
   threshold: number;
   ridge_skill: number;
   ensemble_dir_acc: number;
+  has_onnx?: boolean;
+  onnx_file?: string;
 };
 
 type StatModel = {
@@ -52,46 +67,52 @@ function dotProduct(a: number[], b: number[]) {
   return a.reduce((s, v, i) => s + v * b[i], 0);
 }
 
-/** Build the same feature vector as the Python training script. */
+/** Build the v2 feature vector (24 features). */
 function buildFeatures(
   currentApy: number,
   ms: { ma7: number; ma30: number; std30: number },
   market: string,
-  btcMs: { ma7: number; ma30: number; std30: number; current_rate: number }
+  btcMs: { ma7: number; ma30: number; std30: number; current_rate: number },
+  extra: { fng_current: number; fng_ma7: number; btc_price: number },
 ): number[] {
   const { ma7, ma30, std30 } = ms;
   const std7 = std30 * 0.7 + 1e-9;
 
   const z7   = (currentApy - ma7)  / std7;
   const z30  = (currentApy - ma30) / (std30 + 1e-9);
-  const mom5 = 0;    // can't compute without time series — neutral
+  const mom5 = 0;
   const mom14 = 0;
   const lag1 = 0; const lag3 = 0; const lag7 = 0;
   const volRatio = std7 / (std30 + 1e-9);
   const trend = (ma7 - ma30) / (ma30 + 1e-9);
   const accel = 0;
 
-  const btcMom1 = (btcMs.current_rate - btcMs.ma7) / (btcMs.ma7 + 1e-9);
+  const logCur = Math.log(Math.abs(currentApy) + 1e-6) * Math.sign(currentApy);
+
+  const btcMom1 = (btcMs.current_rate - btcMs.ma7) / (Math.abs(btcMs.ma7) + 1e-9);
   const btcMom7 = btcMom1;
   const btcZ30  = (btcMs.current_rate - btcMs.ma30) / (btcMs.std30 + 1e-9);
 
+  // BTC price momentum (approximate from extra data)
+  const priceRet7  = 0;  // no historical price series — neutral
+  const priceRet30 = 0;
+  const priceVol30 = 0;
+
+  // Fear & Greed
+  const fngNorm  = (extra.fng_current - 50) / 50.0;
+  const fngTrend = (extra.fng_current - extra.fng_ma7) / 100.0;
+
   const base = [
-    Math.log(currentApy + 0.01), z7, z30, mom5, mom14,
+    logCur, z7, z30, mom5, mom14,
     volRatio, trend, lag1, lag3, lag7,
-    std7 / (currentApy + 1e-9), std30 / (currentApy + 1e-9), accel,
+    std7 / (Math.abs(currentApy) + 1e-9), std30 / (Math.abs(currentApy) + 1e-9), accel,
     btcMom1, btcMom7, btcZ30,
+    priceRet7, priceRet30, priceVol30,
+    fngNorm, fngTrend,
   ];
 
   const ohe = MARKET_LIST.map((m) => (m === market ? 1 : 0));
   return [...base, ...ohe];
-}
-
-function driftToApy(drift: number): number {
-  // Drift: 1_000_000 = 0.0001%/hr → annualized APY
-  return (drift / 1_000_000) * 0.0001 * 24 * 365;
-}
-function apyToDrift(apy: number): number {
-  return Math.round((apy / (24 * 365)) / 0.0001 * 1_000_000);
 }
 
 interface Prediction {
@@ -101,31 +122,86 @@ interface Prediction {
   dirAccuracy: number;
 }
 
-function runEnsemble(
+// ── ONNX LightGBM inference ────────────────────────────────────────────────
+
+const onnxSessions: Record<string, ort.InferenceSession> = {};
+
+async function getOnnxSession(duration: number): Promise<ort.InferenceSession | null> {
+  const key = String(duration);
+  if (onnxSessions[key]) return onnxSessions[key];
+
+  const models = MODEL_DATA.models as Record<string, EnsembleModel | StatModel>;
+  const model = models[key];
+  if (!model || model.type !== "ensemble" || !(model as EnsembleModel).has_onnx) return null;
+
+  try {
+    const onnxFile = (model as EnsembleModel).onnx_file!;
+    const onnxPath = join(process.cwd(), "src/lib/fundex", onnxFile);
+    const session = await ort.InferenceSession.create(onnxPath);
+    onnxSessions[key] = session;
+    return session;
+  } catch (e) {
+    console.warn("ONNX load failed, falling back to Logistic:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+async function runLgbInference(session: ort.InferenceSession, feat: number[]): Promise<number> {
+  const inputTensor = new ort.Tensor("float32", Float32Array.from(feat), [1, feat.length]);
+  const results = await session.run({ input: inputTensor });
+  // LightGBM ONNX outputs: "label" (int64) and "probabilities" (float32 [1, 2])
+  const probKey = Object.keys(results).find(k => k.includes("prob")) ?? "probabilities";
+  const probs = results[probKey];
+  if (probs && probs.data) {
+    const data = probs.data as Float32Array;
+    return data[1];  // P(class=1) = P(up)
+  }
+  return 0.5;
+}
+
+// ── Ensemble with ONNX ──────────────────────────────────────────────────────
+
+async function runEnsemble(
   model: EnsembleModel,
   feat: number[],
-  currentDrift: number
-): Prediction {
+  currentDrift: number,
+  duration: number,
+): Promise<Prediction> {
   const scaled = scaleFeatures(feat, model.scaler_mean, model.scaler_std);
 
-  // Ridge → log-ratio → predicted drift
+  // Ridge → log-ratio → predicted rate (same unit as currentDrift).
+  // Sign-preserving multiplicative update so negative rates can stay negative.
   const logRatio = dotProduct(scaled, model.ridge_coef) + model.ridge_intercept;
-  const predictedDrift = Math.max(0, Math.round(currentDrift * Math.exp(logRatio)));
+  const predictedDrift = Math.round(currentDrift * Math.exp(logRatio));
 
   // Logistic → P(up)
   const logit = dotProduct(scaled, model.logit_coef) + model.logit_intercept;
-  const pUp = sigmoid(logit);
-  const conf = Math.max(pUp, 1 - pUp);
+  const pLogistic = sigmoid(logit);
+
+  // LightGBM → P(up) via ONNX (best effort; falls back to logistic if ONNX fails)
+  let pLgb = pLogistic;
+  const session = await getOnnxSession(duration);
+  if (session) {
+    try {
+      pLgb = await runLgbInference(session, feat);
+    } catch (e) {
+      console.warn("ONNX inference failed, using logistic only:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // Average classifier probabilities
+  const pAvg = (pLogistic + pLgb) / 2;
+  const conf = Math.max(pAvg, 1 - pAvg);
 
   const ridgeDir = logRatio > 0 ? "up" : "down";
-  const logitDir = pUp >= 0.5 ? "up" : "down";
+  const clsDir = pAvg >= 0.5 ? "up" : "down";
 
   let direction: "up" | "down" | "neutral";
   let confidence: "high" | "medium" | "low";
 
-  if (conf >= (model.threshold ?? THRESHOLD) && ridgeDir === logitDir) {
+  if (conf >= (model.threshold ?? 0.70) && ridgeDir === clsDir) {
     direction  = ridgeDir;
-    confidence = conf >= 0.70 ? "high" : "medium";
+    confidence = conf >= 0.75 ? "high" : "medium";
   } else {
     direction  = "neutral";
     confidence = "low";
@@ -142,18 +218,17 @@ function runEnsemble(
 function runStat(
   model: StatModel,
   market: string,
-  currentDrift: number
+  currentRatePer8h: number   // decimal per 8h (matches training units)
 ): Prediction {
   const stats = model.market_stats[market] ?? model.market_stats["BTC"];
-  const currentApy = driftToApy(currentDrift);
-  // Blend recent + long-term mean
-  const predictedApy = stats.recent_mean * 0.6 + stats.mean * 0.4;
+  const predictedRatePer8h = stats.recent_mean * 0.6 + stats.mean * 0.4;
   const direction: "up" | "down" | "neutral" =
-    predictedApy > currentApy * 1.05 ? "up"
-    : predictedApy < currentApy * 0.95 ? "down"
+    predictedRatePer8h > currentRatePer8h * 1.05 ? "up"
+    : predictedRatePer8h < currentRatePer8h * 0.95 ? "down"
     : "neutral";
   return {
-    predictedDrift: apyToDrift(predictedApy),
+    // Convert decimal-per-8h back to Fundex 1e6/8h precision.
+    predictedDrift: Math.round(predictedRatePer8h * 1_000_000),
     direction,
     confidence: "low",
     dirAccuracy: 0.5,
@@ -167,62 +242,86 @@ export async function POST(req: NextRequest) {
     const input: RateAdvisorInput = await req.json();
     const { market, duration, currentOracleRate } = input;
 
+    // Bucket at 100 Fundex units (~0.01% per 8h, ~11% APR granularity).
+    const bucketedRate = Math.round(currentOracleRate / 100) * 100;
+    const cacheKey = `v2|${market}|${duration}|${bucketedRate}`;
+    const cached = advisorCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.value satisfies RateAdvisorOutput);
+    }
+
     const baseMarket = market === "JTO" ? "SOL" : market;
-    const currentApy = driftToApy(currentOracleRate);
+
+    // Training features use "decimal per 8h" — Binance fundingRate raw format.
+    // Fundex stores 1e6/8h precision, so divide by 1_000_000 to match scale.
+    const currentRatePer8h = currentOracleRate / 1_000_000;
 
     const allStats = MODEL_DATA.market_stats as unknown as Record<string, {
       current_rate: number; ma7: number; ma30: number; std30: number;
     }>;
-    const ms     = allStats[baseMarket] ?? allStats["BTC"];
-    const btcMs  = allStats["BTC"];
+    const ms    = allStats[baseMarket] ?? allStats["BTC"];
+    const btcMs = allStats["BTC"];
+    const extra = MODEL_DATA.extra as { fng_current: number; fng_ma7: number; btc_price: number };
 
-    const feat = buildFeatures(currentApy, ms, baseMarket, btcMs);
+    const feat = buildFeatures(currentRatePer8h, ms, baseMarket, btcMs, extra);
 
     const models = MODEL_DATA.models as Record<string, EnsembleModel | StatModel>;
     const model  = models[String(duration)];
 
     let pred: Prediction;
     if (model.type === "ensemble") {
-      pred = runEnsemble(model, feat, currentOracleRate);
+      // runEnsemble uses currentDrift only as a ratio multiplier (exp(logRatio)),
+      // so passing Fundex units in means Fundex units out.
+      pred = await runEnsemble(model as EnsembleModel, feat, currentOracleRate, duration);
     } else {
-      pred = runStat(model as StatModel, baseMarket, currentOracleRate);
+      pred = runStat(model as StatModel, baseMarket, currentRatePer8h);
     }
 
-    const { predictedDrift, direction, confidence, dirAccuracy } = pred;
+    const predictedFundex = pred.predictedDrift;
+    const { direction, confidence, dirAccuracy } = pred;
 
-    // Claude: explain the recommendation
+    // Display values for the LLM prompt — correct Fundex unit math.
+    const currentAprDisplay = rateToAprPct(currentOracleRate);
+    const predictedAprDisplay = rateToAprPct(predictedFundex);
+
     const prompt = `You are a DeFi funding rate advisor for Fundex on Solana.
 
 Market: ${market}-PERP | Duration: ${duration}d
-Current oracle rate: ${currentApy.toFixed(4)}% APY
-Historical ${baseMarket} stats (DeFiLlama GMX perps, winsorized):
-  7d MA: ${ms.ma7.toFixed(2)}%  |  30d MA: ${ms.ma30.toFixed(2)}%  |  30d StdDev: ±${ms.std30.toFixed(2)}%
-ML ensemble prediction:
+Current oracle rate: ${currentAprDisplay.toFixed(2)}% APR
+Historical ${baseMarket} stats (Binance perp funding rates, per-hour decimal):
+  7d MA: ${ms.ma7.toFixed(6)}  |  30d MA: ${ms.ma30.toFixed(6)}  |  30d StdDev: ±${ms.std30.toFixed(6)}
+Fear & Greed Index: ${extra.fng_current}/100
+ML ensemble prediction (Ridge + Logistic + LightGBM):
   Direction: ${direction}  |  Confidence: ${confidence}  |  Historical dir accuracy: ${(dirAccuracy * 100).toFixed(0)}%
-  Predicted avg rate over ${duration}d: ${driftToApy(predictedDrift).toFixed(4)}% APY
-  Recommended fixed rate: ${driftToApy(predictedDrift).toFixed(4)}% APY
+  Predicted avg rate over ${duration}d: ${predictedAprDisplay.toFixed(2)}% APR
+  Recommended fixed rate: ${predictedAprDisplay.toFixed(2)}% APR
 
-Write 1–2 sentences (max 80 chars each) explaining: why this rate/direction and what drives it.
-Respond ONLY with JSON: {"reasoning": "<explanation>"}`;
+Write 1–2 sentences (max 80 chars each) explaining: why this rate/direction and what drives it.`;
 
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      messages: [{ role: "user", content: prompt }],
+    const { output } = await generateText({
+      model: MODEL_HAIKU,
+      prompt,
+      output: Output.object({ schema: ReasoningSchema }),
+      providerOptions: {
+        gateway: {
+          tags: ["feature:advisor"],
+          order: [...GATEWAY_FALLBACK_ORDER],
+          cacheControl: "max-age=120",
+        },
+      },
     });
+    const reasoning = truncateError(output.reasoning.trim(), 280);
 
-    const raw  = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
-    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const { reasoning } = JSON.parse(text) as { reasoning: string };
-
-    return NextResponse.json({
-      predictedRatePerHour:  predictedDrift,
-      recommendedFixedRate:  predictedDrift,
+    const result: RateAdvisorOutput = {
+      predictedRatePerHour: predictedFundex,
+      recommendedFixedRate: predictedFundex,
       direction,
       confidence,
       dirAccuracy,
       reasoning,
-    } satisfies RateAdvisorOutput);
+    };
+    advisorCache.set(cacheKey, { value: result, expiresAt: Date.now() + ADVISOR_TTL_MS });
+    return NextResponse.json(result satisfies RateAdvisorOutput);
   } catch (e) {
     console.error("Rate advisor error:", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Rate advisor unavailable" }, { status: 500 });

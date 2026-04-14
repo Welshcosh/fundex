@@ -13,7 +13,7 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import { Fundex } from "../target/types/fundex";
-import { PublicKey } from "@solana/web3.js";
+import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 
 const INTERVAL_MS = Number(process.env.INTERVAL_MS ?? 5 * 60 * 1000); // 5 min default
 const DRY_RUN = process.env.DRY_RUN === "true";
@@ -68,8 +68,72 @@ function marketPda(perpIndex: number, duration: number, programId: PublicKey): P
   )[0];
 }
 
+async function sendAndPoll(
+  provider: anchor.AnchorProvider,
+  tx: anchor.web3.Transaction,
+  label: string,
+): Promise<string> {
+  const conn = provider.connection;
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("processed");
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = provider.wallet.publicKey;
+  const signed = await provider.wallet.signTransaction(tx);
+  const raw = signed.serialize();
+
+  // Simulate first to surface real errors (skipPreflight hides them)
+  try {
+    const sim = await conn.simulateTransaction(signed);
+    if (sim.value.err) {
+      const logs = (sim.value.logs ?? []).slice(-10).join("\n      ");
+      throw new Error(`simulate error: ${JSON.stringify(sim.value.err)}\n      logs:\n      ${logs}`);
+    }
+    if (sim.value.unitsConsumed) {
+      console.log(`    simulate OK: ${sim.value.unitsConsumed} CU consumed`);
+    }
+  } catch (e: any) {
+    throw new Error(`simulate failed: ${e?.message ?? e}`);
+  }
+
+  let sig: string;
+  try {
+    sig = await conn.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 });
+  } catch (e: any) {
+    throw new Error(`sendRawTransaction failed: ${e?.message ?? e}`);
+  }
+  console.log(`    → ${label} submitted ${sig} (lastValidBlockHeight=${lastValidBlockHeight})`);
+
+  // HTTP poll + re-broadcast every 2s until confirmed or blockhash expires
+  let lastStatus: string | null = null;
+  for (let i = 0; i < 45; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Re-broadcast every 2 seconds (devnet drops txs)
+    if (i > 0 && i % 2 === 0) {
+      conn.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 }).catch(() => {});
+    }
+
+    const statuses = await conn.getSignatureStatuses([sig], { searchTransactionHistory: false });
+    const s = statuses.value[0];
+    if (s?.err) throw new Error(`tx failed on-chain: ${JSON.stringify(s.err)}`);
+    lastStatus = s?.confirmationStatus ?? null;
+    if (s?.confirmationStatus === "processed" || s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized") {
+      return sig;
+    }
+
+    // Check blockhash expiration
+    if (i % 5 === 0) {
+      const currentHeight = await conn.getBlockHeight("confirmed");
+      if (currentHeight > lastValidBlockHeight) {
+        throw new Error(`blockhash expired at height ${currentHeight} > ${lastValidBlockHeight}`);
+      }
+    }
+  }
+  throw new Error(`not confirmed after 45s; lastStatus=${lastStatus}; sig=${sig}`);
+}
+
 async function settleAll(program: anchor.Program<Fundex>) {
-  const crank = (program.provider as anchor.AnchorProvider).wallet.publicKey;
+  const provider = program.provider as anchor.AnchorProvider;
+  const crank = provider.wallet.publicKey;
   const now = new Date().toISOString();
 
   for (const perp of PERPS) {
@@ -97,16 +161,23 @@ async function settleAll(program: anchor.Program<Fundex>) {
       }
 
       try {
-        const sig = await (program.methods as any)
+        const tx = await (program.methods as any)
           .settleFunding()
           .accounts({ crank, market, oracle, driftPerpMarket })
-          .rpc();
+          .preInstructions([
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
+          ])
+          .transaction();
+        const sig = await sendAndPoll(provider, tx, label);
         console.log(`[${now}] ✓ ${label} sig=${sig.slice(0, 8)}…`);
       } catch (e: any) {
-        if (e.message?.includes("TooSoon") || e.message?.includes("TooEarlyToSettle")) {
+        const msg = e.message ?? "";
+        if (msg.includes("TooSoon") || msg.includes("TooEarlyToSettle")) {
           console.log(`[${now}] ~ ${label}: too soon`);
+        } else if (msg.includes("was not confirmed") || msg.includes("Blockhash not found")) {
+          console.warn(`[${now}] ? ${label}: confirmation pending (will retry next tick)`);
         } else {
-          console.error(`[${now}] ✗ ${label}: ${e.message?.slice(0, 80)}`);
+          console.error(`[${now}] ✗ ${label}: ${msg.slice(0, 80)}`);
         }
       }
     }

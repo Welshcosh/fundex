@@ -10,19 +10,19 @@ interface Props {
 const stats = (market: MarketInfo) => [
   {
     label: "Current 8h Rate",
-    value: "+" + formatRate(market.baseRate),
+    value: formatRate(market.baseRate),
     sub: "Drift Protocol",
     color: "#4ade80",
   },
   {
     label: "Annualized Rate",
-    value: "+" + formatRateAnnualized(market.baseRate),
-    sub: "APY equivalent",
+    value: formatRateAnnualized(market.baseRate),
+    sub: "APR equivalent",
     color: "#00d4ff",
   },
   {
     label: "Fixed Rate (30D)",
-    value: "+" + formatRate(Math.round(market.baseRate * 0.92)),
+    value: formatRate(Math.round(market.baseRate * 0.92)),
     sub: "EMA oracle",
     color: "#a78bfa",
   },

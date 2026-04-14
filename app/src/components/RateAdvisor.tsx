@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { MarketInfo, DurationVariant } from "@/lib/constants";
 import { OnchainMarketData } from "@/hooks/useMarketData";
 import { RateAdvisorOutput } from "@/app/api/ai/rate-advisor/route";
+import { rateToAprPct } from "@/lib/utils";
 
 const DURATION_LABELS: Record<number, string> = {
   7: "7d",
@@ -11,10 +12,6 @@ const DURATION_LABELS: Record<number, string> = {
   90: "90d",
   180: "180d",
 };
-
-function driftToApy(drift: number) {
-  return (drift / 1_000_000) * 0.0001 * 24 * 365;
-}
 
 function DirectionIcon({ dir }: { dir: "up" | "down" | "neutral" }) {
   if (dir === "up") return (
@@ -78,20 +75,37 @@ export function RateAdvisor({ market, duration, onchainData }: Props) {
     const durMap: Record<number, 7 | 30 | 90 | 180> = { 0: 7, 1: 30, 2: 90, 3: 180 };
     const dur_key = durMap[duration] ?? 30;
 
-    fetch("/api/ai/rate-advisor", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ market: market_key, duration: dur_key, currentOracleRate: oracleRate }),
-    })
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => { if (!cancelled) { setResult(data); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
+    const body = JSON.stringify({ market: market_key, duration: dur_key, currentOracleRate: oracleRate });
+    (async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (cancelled) return;
+        try {
+          const r = await fetch("/api/ai/rate-advisor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+          if (r.status === 429) {
+            await new Promise((res) => setTimeout(res, 800 * Math.pow(2, attempt) + Math.random() * 400));
+            continue;
+          }
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          if (!cancelled) { setResult(data); setLoading(false); }
+          return;
+        } catch {
+          if (!cancelled) { setError(true); setLoading(false); }
+          return;
+        }
+      }
+      if (!cancelled) { setError(true); setLoading(false); }
+    })();
 
     return () => { cancelled = true; };
   }, [fetchKey, onchainData.live, oracleRate, market.symbol, duration]);
 
-  const currentApy = driftToApy(oracleRate);
-  const recommendedApy = result ? driftToApy(result.recommendedFixedRate) : null;
+  const currentApr = rateToAprPct(oracleRate);
+  const recommendedApr = result ? rateToAprPct(result.recommendedFixedRate) : null;
 
   return (
     <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: "#0a0918" }}>
@@ -147,7 +161,7 @@ export function RateAdvisor({ market, duration, onchainData }: Props) {
                     : result.direction === "down" ? "#f87171"
                       : "#9ca3af"
                 }}>
-                  {recommendedApy !== null ? `${recommendedApy.toFixed(2)}% APY` : "—"}
+                  {recommendedApr !== null ? `${recommendedApr.toFixed(2)}% APR` : "—"}
                 </div>
               </div>
             </div>
@@ -158,7 +172,7 @@ export function RateAdvisor({ market, duration, onchainData }: Props) {
           <div className="flex gap-3 text-[10px] font-mono">
             <div>
               <span style={{ color: "#4a4568" }}>Oracle now </span>
-              <span style={{ color: "#9ca3af" }}>{currentApy.toFixed(2)}%</span>
+              <span style={{ color: "#9ca3af" }}>{currentApr.toFixed(2)}%</span>
             </div>
             <div style={{ color: "#2d2b45" }}>|</div>
             <div>

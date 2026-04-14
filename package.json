@@ -14,9 +14,11 @@
     "verify:drift": "MAINNET_RPC=https://mainnet.helius-rpc.com/?api-key=847fcb36-1e59-45de-b3fc-ac7e83a42981 ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/verify-drift-indices.ts",
     "crank:demo": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/crank-devnet.ts",
     "crank:demo:fast": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json INTERVAL_MS=60000 yarn ts-node -P tsconfig.json scripts/crank-devnet.ts",
-    "reset:oracle": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/reset-oracle.ts",
+    "reset:oracle": "ANCHOR_PROVIDER_URL=https://devnet.helius-rpc.com/?api-key=847fcb36-1e59-45de-b3fc-ac7e83a42981 ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/reset-oracle.ts",
     "seed:pools": "ANCHOR_PROVIDER_URL=https://devnet.helius-rpc.com/?api-key=847fcb36-1e59-45de-b3fc-ac7e83a42981 ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/seed-pools.ts",
-    "fix:7d": "ANCHOR_PROVIDER_URL=https://devnet.helius-rpc.com/?api-key=847fcb36-1e59-45de-b3fc-ac7e83a42981 ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/fix-7d-markets.ts"
+    "fix:7d": "ANCHOR_PROVIDER_URL=https://devnet.helius-rpc.com/?api-key=847fcb36-1e59-45de-b3fc-ac7e83a42981 ANCHOR_WALLET=~/.config/solana/id.json yarn ts-node -P tsconfig.json scripts/fix-7d-markets.ts",
+    "backtest:funding": "yarn ts-node -P tsconfig.json scripts/backtest-funding.ts",
+    "backtest:swaps": "yarn ts-node -P tsconfig.json scripts/backtest-swaps.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

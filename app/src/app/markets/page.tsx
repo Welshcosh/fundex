@@ -137,19 +137,19 @@ function MarketRow({ market }: { market: MarketInfo }) {
           <div className="flex items-center gap-4 md:gap-6">
             <div className="text-right">
               <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>8h Funding</div>
-              <div className="font-mono font-bold text-sm flex items-center gap-1 justify-end" style={{ color: "#2dd4bf" }}>
+              <div className="font-mono font-bold text-sm flex items-center gap-1 justify-end" style={{ color: variableRate >= 0 ? "#2dd4bf" : "#f87171" }}>
                 {live ? (
-                  <span style={{ color: "#2dd4bf" }}>●</span>
+                  <span>●</span>
                 ) : (
                   <TrendingUp size={11} />
                 )}
-                +{formatRate(variableRate)}
+                {formatRate(variableRate)}
               </div>
             </div>
             <div className="hidden sm:block text-right">
-              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>APY</div>
+              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>APR</div>
               <div className="font-mono font-semibold text-sm" style={{ color: "#c4b5fd" }}>
-                +{formatRateAnnualized(variableRate)}
+                {formatRateAnnualized(variableRate)}
               </div>
             </div>
             <div className="hidden sm:block text-right">
@@ -180,7 +180,7 @@ function MarketRow({ market }: { market: MarketInfo }) {
                   Fixed&nbsp;&nbsp;{formatRate(fixedRate)}
                 </div>
                 <div className="text-[11px]" style={{ color: spread >= 0 ? "#2dd4bf" : "#f87171" }}>
-                  Spread {spread >= 0 ? "+" : ""}{formatRate(spread)}
+                  Spread {formatRate(spread)}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">

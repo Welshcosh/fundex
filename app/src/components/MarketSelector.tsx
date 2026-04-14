@@ -102,8 +102,8 @@ export function MarketSelector({ selectedMarket, selectedDuration, onMarketChang
         <TrendingUp size={13} style={{ color: "#4ade80" }} />
         <div>
           <span className="text-xs" style={{ color: "#94a3b8" }}>8h Rate </span>
-          <span className="text-sm font-mono font-semibold" style={{ color: "#4ade80" }}>
-            +{formatRate(selectedMarket.baseRate)}
+          <span className="text-sm font-mono font-semibold" style={{ color: selectedMarket.baseRate >= 0 ? "#4ade80" : "#f87171" }}>
+            {formatRate(selectedMarket.baseRate)}
           </span>
         </div>
       </div>

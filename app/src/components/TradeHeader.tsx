@@ -57,7 +57,7 @@ export function TradeHeader({ market, duration, onchainData, onMarketChange, onD
                     </div>
                     <span className="text-sm font-medium" style={{ color: active ? "#ede9fe" : "#8b87a8" }}>{m.name}</span>
                   </div>
-                  <span className="text-xs font-mono" style={{ color: "#2dd4bf" }}>+{formatRate(m.baseRate)}</span>
+                  <span className="text-xs font-mono" style={{ color: m.baseRate >= 0 ? "#2dd4bf" : "#f87171" }}>{formatRate(m.baseRate)}</span>
                 </button>
               );
             })}
@@ -69,22 +69,22 @@ export function TradeHeader({ market, duration, onchainData, onMarketChange, onD
       <div className="flex items-center gap-4 md:gap-6 text-sm">
         <div className="whitespace-nowrap">
           <span style={{ color: "#4a4568" }}>8h </span>
-          <span className="font-mono font-semibold" style={{ color: "#2dd4bf" }}>
-            +{formatRate(variableRate)}
+          <span className="font-mono font-semibold" style={{ color: variableRate >= 0 ? "#2dd4bf" : "#f87171" }}>
+            {formatRate(variableRate)}
           </span>
           {onchainData.live && (
-            <span className="ml-1 w-1.5 h-1.5 rounded-full inline-block" style={{ background: "#2dd4bf", opacity: 0.8 }} />
+            <span className="ml-1 w-1.5 h-1.5 rounded-full inline-block" style={{ background: variableRate >= 0 ? "#2dd4bf" : "#f87171", opacity: 0.8 }} />
           )}
         </div>
         <div className="hidden sm:block whitespace-nowrap">
-          <span style={{ color: "#4a4568" }}>APY </span>
+          <span style={{ color: "#4a4568" }}>APR </span>
           <span className="font-mono font-semibold" style={{ color: "#c4b5fd" }}>
-            +{formatRateAnnualized(variableRate)}
+            {formatRateAnnualized(variableRate)}
           </span>
         </div>
         <div className="hidden md:block whitespace-nowrap">
           <span style={{ color: "#4a4568" }}>Fixed </span>
-          <span className="font-mono" style={{ color: "#6b6890" }}>+{formatRate(fixedRate)}</span>
+          <span className="font-mono" style={{ color: "#6b6890" }}>{formatRate(fixedRate)}</span>
         </div>
         <div className="hidden md:block whitespace-nowrap">
           <span style={{ color: "#4a4568" }}>OI </span>
