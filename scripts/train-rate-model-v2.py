@@ -22,7 +22,7 @@ from onnxmltools.convert.common.data_types import FloatTensorType
 
 SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
 DURATIONS    = [7, 30, 90, 180]
-ML_DURATIONS = [7, 30]
+ML_DURATIONS = [7, 30, 90, 180]
 THRESHOLD    = 0.65
 TRAIN_RATIO  = 0.70
 

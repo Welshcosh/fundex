@@ -309,9 +309,8 @@ fundex/
 │   ├── init-pools.ts          # Initialize LP pools for all 16 markets
 │   ├── crank-devnet.ts        # Demo crank (mock rates, 1-min intervals)
 │   ├── crank.ts               # Production crank (live Drift rates)
-│   └── liquidator.ts          # Permissionless liquidator bot
-│   ├── train-rate-model.py    # ML model training (Binance funding rates)
-│   └── validate-rate-model.py # Walk-forward backtesting
+│   ├── liquidator.ts          # Permissionless liquidator bot
+│   └── train-rate-model-v2.py # ML model training (Binance funding rates + purged walk-forward CV)
 ├── sdk/src/                   # TypeScript client SDK
 │   ├── client.ts              # All instructions + fetch methods incl. LP
 │   └── pda.ts                 # PDA derivation helpers

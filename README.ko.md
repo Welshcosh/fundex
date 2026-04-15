@@ -308,9 +308,8 @@ fundex/
 │   ├── init-pools.ts          # 16 마켓 LP pool 초기화
 │   ├── crank-devnet.ts        # 데모 크랭크 (모의 rate, 1 분 간격)
 │   ├── crank.ts               # 프로덕션 크랭크 (실제 Drift rate)
-│   └── liquidator.ts          # 퍼미션리스 청산 봇
-│   ├── train-rate-model.py    # ML 모델 학습 (Binance 펀딩비)
-│   └── validate-rate-model.py # Walk-forward 백테스트
+│   ├── liquidator.ts          # 퍼미션리스 청산 봇
+│   └── train-rate-model-v2.py # ML 모델 학습 (Binance 펀딩비 + purged walk-forward CV)
 ├── sdk/src/                   # TypeScript 클라이언트 SDK
 │   ├── client.ts              # 모든 instruction + fetch, LP 포함
 │   └── pda.ts                 # PDA 파생 헬퍼
