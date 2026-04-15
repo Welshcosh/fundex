@@ -191,8 +191,8 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
             ["Notional", formatUSD(notional), "#8b87a8"],
             ["Collateral (10%)", formatUSD(collateralUsd), "#8b87a8"],
             [`AMM fee (${(dynamicFeeBps / 100).toFixed(1)}%)`, formatUSD(lpFeeUsd), increasesImbalance ? "#fbbf24" : "#4a4568"],
-            ["Fixed rate", `${formatRate(fixedRate)} / 8h`, "#6b6890", `${formatRateAnnualized(fixedRate)} APR`],
-            ["Variable rate", `${formatRate(variableRate)} / 8h`, variableRate >= 0 ? "#2dd4bf" : "#f87171", `${formatRateAnnualized(variableRate)} APR`],
+            ["Fixed rate", `${formatRate(fixedRate)} / 1h`, "#6b6890", `${formatRateAnnualized(fixedRate)} APR`],
+            ["Variable rate", `${formatRate(variableRate)} / 1h`, variableRate >= 0 ? "#2dd4bf" : "#f87171", `${formatRateAnnualized(variableRate)} APR`],
           ].map(([label, value, color, sub]) => (
             <div key={label as string} className="flex items-start justify-between gap-2">
               <span style={{ color: "#4a4568" }}>{label}</span>

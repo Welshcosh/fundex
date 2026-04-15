@@ -1,5 +1,5 @@
-// Internal rate unit: 1e6 = 100% per 8h funding interval.
-// 10_000 units = 1% per 8h.
+// Internal rate unit: 1e6 = 100% per hour (matches on-chain FUNDING_INTERVAL = 3_600s).
+// 10_000 units = 1% per hour.
 
 export function formatRate(rate: number): string {
   const pct = rate / 10_000;
@@ -15,10 +15,11 @@ export function formatRateAnnualized(rate: number): string {
   return sign + Math.abs(annualizedPct).toFixed(2) + "%";
 }
 
-/** Convert internal rate (1e6/8h units) to annualized percent as a number. */
+/** Convert internal rate (1e6/1h units) to annualized percent as a number. */
 export function rateToAprPct(rate: number): number {
-  // 8h funding interval × 3/day × 365 days = 1095 settlements per year.
-  return (rate / 10_000) * 1095;
+  // 1h funding interval × 24/day × 365 days = 8760 settlements per year.
+  // 10_000 rate units = 1% per hour → × 8760 = % APR (simple annualization).
+  return (rate / 10_000) * 8760;
 }
 
 export function formatRelativeTime(unixSeconds: number): string {

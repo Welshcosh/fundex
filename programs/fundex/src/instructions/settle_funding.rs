@@ -47,11 +47,12 @@ pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
         .map_err(|_| error!(FundexError::InvalidDriftAccount))?;
     let last_funding_rate = i64::from_le_bytes(raw_bytes);
 
-    // Convert: Drift uses 1e9 precision per hour; we use 1e6 precision per 8h.
-    // actual_rate (1e6/8h) = last_funding_rate (1e9/1h) * 8 / 1_000
+    // Convert: Drift uses 1e9 precision per hour; we use 1e6 precision per hour.
+    // actual_rate (1e6/1h) = last_funding_rate (1e9/1h) / 1_000
+    // Settlement runs every hour (FUNDING_INTERVAL = 3_600s), so per-hour units
+    // are accumulated directly without any time-scaling multiplier.
     let actual_rate = last_funding_rate
-        .checked_mul(8)
-        .and_then(|v| v.checked_div(1_000))
+        .checked_div(1_000)
         .ok_or(error!(FundexError::MathOverflow))?;
 
     // Clamp to allowed range

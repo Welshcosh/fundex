@@ -24,8 +24,10 @@ pub const MIN_ORACLE_SAMPLES: u64 = 24;     // 1 day of hourly data
 pub const EMA_WINDOW: i64 = 10; // α = 0.1
 
 // ─── Precision ───────────────────────────────────────────────────────────────
-// Drift stores funding rates with PRICE_PRECISION = 1_000_000 (1e6)
-// 1 Drift rate unit ≈ 0.000001 (0.0001%) of notional per funding interval
+// Fundex rate precision: 1e6 = 100% per hour (matches FUNDING_INTERVAL = 3_600s).
+// 1 Fundex rate unit ≈ 0.000001 (0.0001%) of notional per hour.
+// DRIFT_PRICE_PRECISION is the divisor used when multiplying rate × notional
+// (both are 1e6 precision, so divide once to get USDC lamports).
 pub const DRIFT_PRICE_PRECISION: i64 = 1_000_000;
 
 // ─── Duration options (seconds) ──────────────────────────────────────────────
@@ -47,12 +49,13 @@ pub const DRIFT_PROGRAM_ID_BYTES: [u8; 32] = [
 /// Verified from Drift IDL: 8 (discriminator) + 32 (pubkey) + 440 (AMM prefix) = 480.
 pub const DRIFT_LAST_FUNDING_RATE_OFFSET: usize = 480;
 /// Drift stores funding rate with 1e9 precision (per hour).
-/// Conversion to our 1e6 precision (per 8h): rate * 8 / 1_000
+/// Conversion to our 1e6 precision (per hour): rate / 1_000
 pub const DRIFT_FUNDING_RATE_PRECISION: i64 = 1_000_000_000;
 
 // ─── Rate bounds ─────────────────────────────────────────────────────────────
-// Max allowed fixed_rate: ±50% annualized ≈ ±5000 bps hourly in Drift units
-// Drift unit per 1% per hour ≈ 10_000
+// Fundex rate units: 10_000 = 1% per hour (1e6 precision).
+// MAX = 500_000 = 50% per hour ≈ 4380% APR — a very loose cap that allows
+// absorbing extreme Drift funding spikes while still preventing i64 overflow.
 pub const MAX_FIXED_RATE_ABS: i64 = 500_000;
 
 // ─── LP Fee (AMM-style dynamic pricing) ──────────────────────────────────────
