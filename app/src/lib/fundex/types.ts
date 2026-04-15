@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/fundex.json`.
  */
 export type Fundex = {
-  "address": "7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2",
+  "address": "BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb",
   "metadata": {
     "name": "fundex",
     "version": "0.1.0",
@@ -13,6 +13,60 @@ export type Fundex = {
     "description": "Funding Rate Swap Market on Solana"
   },
   "instructions": [
+    {
+      "name": "closeMarket",
+      "discriminator": [
+        88,
+        154,
+        248,
+        186,
+        48,
+        14,
+        123,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
     {
       "name": "closePool",
       "discriminator": [
@@ -1298,6 +1352,11 @@ export type Fundex = {
       "code": 6016,
       "name": "invalidDriftAccount",
       "msg": "Drift PerpMarket account has wrong owner or is too small"
+    },
+    {
+      "code": 6017,
+      "name": "marketHasOpenPositions",
+      "msg": "Market still has collateral — close all positions first"
     }
   ],
   "types": [

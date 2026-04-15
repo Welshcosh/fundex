@@ -329,7 +329,7 @@ fundex/
 
 | Item | Address |
 |------|---------|
-| Program ID | `7UzjwBopedNuBzf5T4CYouJrGqgkQRnjtMAwjxdPFbQk` |
+| Program ID | `BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb` |
 | USDC Mint | `BqLbRiRvDNMzryGjtAh9qn44iM4F2VPD3Df7m4MsV5e4` |
 | Markets | 16 active (BTC/ETH/SOL/JTO × 7D/30D/90D/180D) |
 | LP Pools | 16 active (one per market) |

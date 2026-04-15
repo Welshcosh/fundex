@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 
 export const FUNDEX_PROGRAM_ID = new PublicKey(
-  "7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2"
+  "BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb"
 );
 
 export const NOTIONAL_PER_LOT = 100; // 100 USDC per lot

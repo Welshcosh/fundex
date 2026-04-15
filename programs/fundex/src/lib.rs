@@ -8,7 +8,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2");
+declare_id!("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
 
 #[program]
 pub mod fundex {

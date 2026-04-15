@@ -6,7 +6,7 @@ import * as path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, "../app/.env.local") });
 
-const PROGRAM_ID = new PublicKey("7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2");
+const PROGRAM_ID = new PublicKey("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
 const NAMES = ["BTC", "ETH", "SOL", "JTO"];
 const DURS  = ["7D", "30D", "90D", "180D"];
 

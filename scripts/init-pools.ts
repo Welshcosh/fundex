@@ -22,7 +22,7 @@ import * as path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, "../app/.env.local") });
 
-const PROGRAM_ID = new PublicKey("7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2");
+const PROGRAM_ID = new PublicKey("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
 const USDC_MINT = new PublicKey(
   process.env.NEXT_PUBLIC_USDC_MINT ?? "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 );

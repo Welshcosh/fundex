@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
-const PROGRAM_ID = new PublicKey("7WbeipNFJvVuUxzydWTWRDFZ58kidQtNA5a2FWy1i5b2");
+const PROGRAM_ID = new PublicKey("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
 const NAMES = ["BTC", "ETH", "SOL", "JTO"];
 const DURS  = ["7D", "30D", "90D", "180D"];
 

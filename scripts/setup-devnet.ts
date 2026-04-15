@@ -31,11 +31,17 @@ import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
+// Fundex rate precision: 1e6 = 100% per hour. APR = (rate/10_000) × 8760.
+// These mockRate values target realistic long-term Binance perp funding medians:
+//   BTC 0.010%/8h → 12/1h (10.5% APR)
+//   ETH 0.008%/8h → 10/1h (8.8% APR)
+//   SOL 0.015%/8h → 19/1h (16.6% APR)
+//   JTO 0.025%/8h → 31/1h (27.2% APR — thin-altcoin premium)
 const PERPS = [
-  { index: 0, name: "BTC-PERP", mockRate: 8500 },
-  { index: 1, name: "ETH-PERP", mockRate: 5200 },
-  { index: 2, name: "SOL-PERP", mockRate: 12100 },
-  { index: 3, name: "JTO-PERP", mockRate: 3300 },
+  { index: 0, name: "BTC-PERP", mockRate: 12 },
+  { index: 1, name: "ETH-PERP", mockRate: 10 },
+  { index: 2, name: "SOL-PERP", mockRate: 19 },
+  { index: 3, name: "JTO-PERP", mockRate: 31 },
 ];
 
 const DURATIONS = [0, 1, 2, 3]; // Days7, Days30, Days90, Days180
