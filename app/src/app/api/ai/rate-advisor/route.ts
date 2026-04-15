@@ -21,7 +21,7 @@ const ADVISOR_TTL_MS = 15 * 60 * 1000;
 export interface RateAdvisorInput {
   market: "BTC" | "ETH" | "SOL" | "JTO";
   duration: 7 | 30 | 90 | 180;
-  currentOracleRate: number;   // Fundex precision (1e6 = 100% per 8h interval)
+  currentOracleRate: number;   // Fundex precision (1e6 = 100% per hour interval)
 }
 
 export interface RateAdvisorOutput {
@@ -227,8 +227,8 @@ function runStat(
     : predictedRatePer8h < currentRatePer8h * 0.95 ? "down"
     : "neutral";
   return {
-    // Convert decimal-per-8h back to Fundex 1e6/8h precision.
-    predictedDrift: Math.round(predictedRatePer8h * 1_000_000),
+    // Convert decimal-per-8h to Fundex 1e6/1h precision: (per8h / 8) × 1e6.
+    predictedDrift: Math.round((predictedRatePer8h / 8) * 1_000_000),
     direction,
     confidence: "low",
     dirAccuracy: 0.5,
@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
     const input: RateAdvisorInput = await req.json();
     const { market, duration, currentOracleRate } = input;
 
-    // Bucket at 100 Fundex units (~0.01% per 8h, ~11% APR granularity).
+    // Bucket at 100 Fundex units (~0.01% per hour, ~88% APR granularity).
     const bucketedRate = Math.round(currentOracleRate / 100) * 100;
     const cacheKey = `v2|${market}|${duration}|${bucketedRate}`;
     const cached = advisorCache.get(cacheKey);
@@ -253,8 +253,9 @@ export async function POST(req: NextRequest) {
     const baseMarket = market === "JTO" ? "SOL" : market;
 
     // Training features use "decimal per 8h" — Binance fundingRate raw format.
-    // Fundex stores 1e6/8h precision, so divide by 1_000_000 to match scale.
-    const currentRatePer8h = currentOracleRate / 1_000_000;
+    // Fundex now stores 1e6/1h precision (settles hourly), so convert per-hour
+    // Fundex rate to per-8h decimal: (rate × 8) / 1_000_000.
+    const currentRatePer8h = (currentOracleRate * 8) / 1_000_000;
 
     const allStats = MODEL_DATA.market_stats as unknown as Record<string, {
       current_rate: number; ma7: number; ma30: number; std30: number;
@@ -288,7 +289,7 @@ export async function POST(req: NextRequest) {
 
 Market: ${market}-PERP | Duration: ${duration}d
 Current oracle rate: ${currentAprDisplay.toFixed(2)}% APR
-Historical ${baseMarket} stats (Binance perp funding rates, per-hour decimal):
+Historical ${baseMarket} stats (Binance perp funding rates, per-8h decimal):
   7d MA: ${ms.ma7.toFixed(6)}  |  30d MA: ${ms.ma30.toFixed(6)}  |  30d StdDev: ±${ms.std30.toFixed(6)}
 Fear & Greed Index: ${extra.fng_current}/100
 ML ensemble prediction (Ridge + Logistic + LightGBM):

@@ -10,7 +10,7 @@ export interface RiskInput {
   marginRatioBps: number;    // current margin ratio in bps
   unrealizedPnl: number;     // USDC lamports
   collateralDeposited: number; // USDC lamports
-  fixedRate: number;         // Fundex precision (10_000 = 1% per 8h interval)
+  fixedRate: number;         // Fundex precision (10_000 = 1% per hour interval)
   // Market
   currentOracleRate: number; // current EMA funding rate (same Fundex precision)
   totalFixedPayerLots: number;
@@ -32,7 +32,7 @@ In Fundex:
 - Fixed Payer (side=0): pays fixed rate, receives variable funding rate. Profits when actual funding rate > fixed rate.
 - Fixed Receiver (side=1): receives fixed rate, pays variable funding rate. Profits when actual funding rate < fixed rate.
 - marginRatioBps: current collateral / notional in basis points. Below 500bps (~5%) is dangerous, below 200bps is near liquidation.
-- Rates shown below are annualized APR (Fundex settles every 8h; APR = per-8h × 1095).
+- Rates shown below are annualized APR (Fundex settles every hour; APR = per-hour × 8760).
 - OI imbalance: large difference between fixedPayerLots and fixedReceiverLots means the protocol may adjust fixed rates.
 
 Evaluate the position risk from 0 (safe) to 100 (about to be liquidated).

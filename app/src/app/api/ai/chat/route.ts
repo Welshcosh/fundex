@@ -45,7 +45,7 @@ ${(() => {
 - Reference historical rate stats to support your analysis
 - If unsure, say so — never fabricate data
 - Format rates as APR percentages for readability
-- Do NOT use markdown headers or bullet lists unless the user asks for a detailed breakdown`;
+- Respond in plain text only — NO markdown at all. Do not use **bold**, *italic*, \`code\`, headers (#), bullet lists (-, *), or numbered lists. The UI renders raw text, so markdown syntax appears literally to the user.`;
 
 function buildSystemPrompt(ctx?: MarketContext): string {
   if (!ctx) return BASE_SYSTEM_PROMPT;
