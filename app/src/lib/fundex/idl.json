@@ -8,6 +8,58 @@
   },
   "instructions": [
     {
+      "name": "admin_reset_oracle",
+      "discriminator": [
+        134,
+        242,
+        113,
+        24,
+        208,
+        103,
+        68,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "oracle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.perp_index",
+                "account": "MarketState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "close_market",
       "discriminator": [
         88,

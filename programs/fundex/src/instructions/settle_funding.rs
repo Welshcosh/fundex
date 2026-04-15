@@ -26,7 +26,7 @@ pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
         );
     }
 
-    // ── Read Drift lastFundingRate on-chain ───────────────────────────────────
+    // ── Read Drift lastFundingRate + lastFundingOracleTwap on-chain ──────────
     let drift_acct = &ctx.accounts.drift_perp_market;
 
     // Verify owner == Drift program
@@ -36,24 +36,41 @@ pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
         FundexError::InvalidDriftAccount
     );
 
-    // Read i64 at byte offset DRIFT_LAST_FUNDING_RATE_OFFSET (little-endian)
+    // Read two i64 fields at known byte offsets (little-endian).
     let data = drift_acct.try_borrow_data()?;
     require!(
-        data.len() >= DRIFT_LAST_FUNDING_RATE_OFFSET + 8,
+        data.len() >= DRIFT_LAST_FUNDING_ORACLE_TWAP_OFFSET + 8,
         FundexError::InvalidDriftAccount
     );
-    let raw_bytes: [u8; 8] = data[DRIFT_LAST_FUNDING_RATE_OFFSET..DRIFT_LAST_FUNDING_RATE_OFFSET + 8]
+    let rate_bytes: [u8; 8] = data[DRIFT_LAST_FUNDING_RATE_OFFSET..DRIFT_LAST_FUNDING_RATE_OFFSET + 8]
         .try_into()
         .map_err(|_| error!(FundexError::InvalidDriftAccount))?;
-    let last_funding_rate = i64::from_le_bytes(raw_bytes);
+    let twap_bytes: [u8; 8] = data[DRIFT_LAST_FUNDING_ORACLE_TWAP_OFFSET..DRIFT_LAST_FUNDING_ORACLE_TWAP_OFFSET + 8]
+        .try_into()
+        .map_err(|_| error!(FundexError::InvalidDriftAccount))?;
+    let last_funding_rate = i64::from_le_bytes(rate_bytes);
+    let last_funding_oracle_twap = i64::from_le_bytes(twap_bytes);
 
-    // Convert: Drift uses 1e9 precision per hour; we use 1e6 precision per hour.
-    // actual_rate (1e6/1h) = last_funding_rate (1e9/1h) / 1_000
+    // Drift's `last_funding_rate` is stored as **quote-per-base** in
+    // FUNDING_RATE_PRECISION (1e9), not as a rate. To recover a per-hour rate:
+    //
+    //   rate_per_hour (fraction) = (last_funding_rate / 1e9) / (twap / 1e6)
+    //                            = last_funding_rate / (1e3 × twap)
+    //
+    // Fundex stores rates in 1e6-per-hour precision (1e6 = 100%/h), so:
+    //
+    //   fundex_rate = rate_per_hour × 1e6 = last_funding_rate × 1e3 / twap
+    //
     // Settlement runs every hour (FUNDING_INTERVAL = 3_600s), so per-hour units
     // are accumulated directly without any time-scaling multiplier.
-    let actual_rate = last_funding_rate
-        .checked_div(1_000)
+    require!(last_funding_oracle_twap > 0, FundexError::InvalidDriftAccount);
+    let scaled = (last_funding_rate as i128)
+        .checked_mul(1_000)
         .ok_or(error!(FundexError::MathOverflow))?;
+    let actual_rate_i128 = scaled / (last_funding_oracle_twap as i128);
+    let actual_rate: i64 = actual_rate_i128
+        .try_into()
+        .map_err(|_| error!(FundexError::MathOverflow))?;
 
     // Clamp to allowed range
     let actual_rate = actual_rate.clamp(-MAX_FIXED_RATE_ABS, MAX_FIXED_RATE_ABS);

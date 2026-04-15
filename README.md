@@ -89,6 +89,7 @@ PnL per settlement (Fixed Payer) = (variable_rate − fixed_rate) × notional
 | `settle_funding` | Update cumulative rate index + oracle EMA (crank) |
 | `close_position` | Realise PnL, return collateral |
 | `liquidate_position` | Permissionless liquidation when margin < 5% |
+| `close_market` | Admin closes a market once all positions are unwound |
 
 **LP Pool**
 
@@ -98,6 +99,7 @@ PnL per settlement (Fixed Payer) = (variable_rate − fixed_rate) × notional
 | `deposit_lp` | Deposit USDC into pool, receive pro-rata shares |
 | `withdraw_lp` | Redeem shares for USDC |
 | `sync_pool_pnl` | Settle pool P&L — transfers USDC between user_vault and pool_vault based on net imbalance |
+| `close_pool` | Admin closes an LP pool when all shares are withdrawn |
 
 ### State Accounts
 
@@ -122,7 +124,7 @@ PnL per settlement (Fixed Payer) = (variable_rate − fixed_rate) × notional
 | LP max fee (fully imbalanced) | 1.0% of notional |
 | Lot size | 100 USDC notional |
 | Durations | 7D / 30D / 90D / 180D |
-| Settlement interval | 1h (production) / unrestricted (devnet demo) |
+| Settlement interval | 1h (enforced on devnet and mainnet) |
 
 ---
 
@@ -181,13 +183,17 @@ Fundex reads funding rates **directly from Drift Protocol's PerpMarket accounts*
 ```
 settle_funding():
   1. Verify drift_perp_market.owner == DRIFT_PROGRAM_ID
-  2. Read lastFundingRate (i64) at byte offset 480
-  3. Convert: actual_rate = lastFundingRate × 8 / 1_000
-     (Drift 1e9/hr → Fundex 1e6/8h)
-  4. Clamp to ±MAX_FIXED_RATE_ABS
+  2. Read lastFundingRate       (i64) at byte offset 480
+     Read lastFundingOracleTwap (i64) at byte offset 968
+  3. Convert (i128-safe):
+       fundex_rate = lastFundingRate × 1_000 / lastFundingOracleTwap
+     (Drift stores lastFundingRate as quote-per-base in FUNDING_RATE_PRECISION
+      1e9, not as a rate — recovering a per-hour fraction requires dividing by
+      the oracle TWAP; final scale lands in Fundex's 1e6/h precision.)
+  4. Clamp to ±MAX_FIXED_RATE_ABS (±50% per hour)
 ```
 
-The crank passes the Drift PerpMarket PDA as an account — the program verifies ownership and reads the rate trustlessly. This removes the need for a trusted oracle or off-chain rate relay.
+The crank passes the Drift PerpMarket PDA as an account — the program verifies ownership and reads the rate trustlessly. This removes the need for a trusted oracle or off-chain rate relay. See `docs/WHITEPAPER.md` §5 for the full derivation and §11 for the April 2026 postmortem on the original (incorrect) formula.
 
 **Drift market mapping:**
 
@@ -202,14 +208,14 @@ The crank passes the Drift PerpMarket PDA as an account — the program verifies
 
 ## Funding Rate Term Structure (Yield Curve)
 
-Fundex offers 4 duration maturities (7D / 30D / 90D / 180D) for each underlying. The fixed rates across durations form a **funding rate yield curve** — a novel primitive in DeFi.
+Fundex offers 4 duration maturities (7D / 30D / 90D / 180D) for each underlying. The fixed rates across durations form a **funding rate yield curve** — analogous to interest rate term structures in TradFi (and to Pendle's PT yield curves on the spot side, but applied to perpetual funding instead of staking yields).
 
 The markets page visualizes this curve in real-time, showing:
 - **Normal curve** — longer durations price in higher expected rates
 - **Inverted curve** — short-term rates exceed long-term (crowded payer positioning)
 - **Flat curve** — market expects stable rates
 
-This enables term-structure trading strategies (e.g. long short-end, short long-end) that are impossible on single-maturity protocols.
+This enables term-structure trading strategies — e.g. long the short end and short the long end if you expect rates to mean-revert — which require a multi-maturity venue.
 
 ---
 
@@ -231,11 +237,14 @@ Signal: Emitted when avg Logistic/LightGBM probability ≥ 70% AND agrees with R
 Output: Predicted rate, direction (↑/↓/→), confidence, reasoning (Claude Haiku)
 ```
 
-| Duration | Model | Directional Accuracy |
+| Duration | Model | Directional Accuracy (out-of-sample) |
 |----------|-------|---------------------|
-| 7-day    | Ridge + Logistic + LightGBM | **78.1%** |
-| 30-day   | Ridge + Logistic + LightGBM | **75.1%** |
-| 90-day / 180-day | Stat model (recent_mean × 0.6 + mean × 0.4) | reference |
+| 7-day    | Ridge + Logistic + LightGBM | **75.7%** |
+| 30-day   | Ridge + Logistic + LightGBM | **76.7%** |
+| 90-day   | Ridge + Logistic + LightGBM | **63.5%** |
+| 180-day  | Ridge + Logistic + LightGBM | **62.7%** |
+
+Accuracy figures are from purged walk-forward CV on Binance BTC/ETH/SOL perp funding history (2019-09 → 2026-04). The 90/180-day horizons are harder by design — funding-rate signal decays with prediction horizon. See `app/public/charts/ml-dir-accuracy.png` for the comparison against a Ridge+Logistic baseline.
 
 **Features (24 dims)**: log-transformed rate, z-scores (7d/30d), volatility ratio, trend, BTC cross momentum, BTC z30, Fear & Greed normalize/trend, one-hot market encoding.
 
@@ -294,7 +303,7 @@ The assistant sees **live market context** (current variable/fixed rates, OI imb
 ```
 fundex/
 ├── programs/fundex/src/       # Anchor program (Rust)
-│   ├── instructions/          # 13 instruction handlers
+│   ├── instructions/          # 12 instruction handlers
 │   │   ├── open_position.rs   # Includes 0.3% LP fee logic
 │   │   ├── initialize_pool.rs
 │   │   ├── deposit_lp.rs

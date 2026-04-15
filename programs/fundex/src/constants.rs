@@ -46,11 +46,11 @@ pub const DRIFT_PROGRAM_ID_BYTES: [u8; 32] = [
     0x79, 0x56, 0x1f, 0x89, 0x85, 0x4a, 0x53, 0xf6,
 ];
 /// Byte offset of `amm.last_funding_rate` (i64) within a Drift PerpMarket account.
-/// Verified from Drift IDL: 8 (discriminator) + 32 (pubkey) + 440 (AMM prefix) = 480.
+/// Verified against a live Drift devnet PerpMarket on 2026-04-15: i64 LE at offset 480.
 pub const DRIFT_LAST_FUNDING_RATE_OFFSET: usize = 480;
-/// Drift stores funding rate with 1e9 precision (per hour).
-/// Conversion to our 1e6 precision (per hour): rate / 1_000
-pub const DRIFT_FUNDING_RATE_PRECISION: i64 = 1_000_000_000;
+/// Byte offset of `amm.last_funding_oracle_twap` (i64) within a Drift PerpMarket account.
+/// Verified against a live Drift devnet PerpMarket on 2026-04-15: i64 LE at offset 968.
+pub const DRIFT_LAST_FUNDING_ORACLE_TWAP_OFFSET: usize = 968;
 
 // ─── Rate bounds ─────────────────────────────────────────────────────────────
 // Fundex rate units: 10_000 = 1% per hour (1e6 precision).

@@ -73,4 +73,8 @@ pub mod fundex {
     pub fn close_market(ctx: Context<CloseMarket>) -> Result<()> {
         instructions::close_market::handler(ctx)
     }
+
+    pub fn admin_reset_oracle(ctx: Context<AdminResetOracle>) -> Result<()> {
+        instructions::admin_reset_oracle::handler(ctx)
+    }
 }
