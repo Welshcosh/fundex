@@ -352,7 +352,7 @@ export default function PoolPage() {
           <div style={{ color: "#6b6890" }}>
             Each pool absorbs the net imbalance between Fixed Payers and Fixed Receivers.
             When payers outnumber receivers, the pool acts as the receiver for the difference — earning the rate spread.
-            LPs also earn a <span style={{ color: "#fbbf24" }}>0.3% fee</span> on every position opened in the imbalanced direction.
+            LPs also earn a <span style={{ color: "#fbbf24" }}>0.3% base fee</span> on every position, scaling up to 1.0% as imbalance grows.
             LP P&L is pro-rata to deposit share.
           </div>
         </div>

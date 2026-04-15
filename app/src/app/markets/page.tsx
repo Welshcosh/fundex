@@ -136,7 +136,7 @@ function MarketRow({ market }: { market: MarketInfo }) {
 
           <div className="flex items-center gap-4 md:gap-6">
             <div className="text-right">
-              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>8h Funding</div>
+              <div className="text-[11px] mb-1" style={{ color: "#4a4568" }}>Hourly Funding</div>
               <div className="font-mono font-bold text-sm flex items-center gap-1 justify-end" style={{ color: variableRate >= 0 ? "#2dd4bf" : "#f87171" }}>
                 {live ? (
                   <span>●</span>

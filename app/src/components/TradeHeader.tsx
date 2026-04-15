@@ -68,7 +68,7 @@ export function TradeHeader({ market, duration, onchainData, onMarketChange, onD
       {/* Stats */}
       <div className="flex items-center gap-4 md:gap-6 text-sm">
         <div className="whitespace-nowrap">
-          <span style={{ color: "#4a4568" }}>8h </span>
+          <span style={{ color: "#4a4568" }}>1h </span>
           <span className="font-mono font-semibold" style={{ color: variableRate >= 0 ? "#2dd4bf" : "#f87171" }}>
             {formatRate(variableRate)}
           </span>

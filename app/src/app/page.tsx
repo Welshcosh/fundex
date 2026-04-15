@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Shield, Zap, TrendingUp, BarChart2, Lock, RefreshCw } from "lucide-react";
+import { ArrowRight, Shield, Zap, TrendingUp, BarChart2, Lock, RefreshCw, Cpu, CheckCircle2, Code2, ExternalLink } from "lucide-react";
 import { MARKETS, DurationVariant } from "@/lib/constants";
 import { formatRate, formatRateAnnualized, formatUSD } from "@/lib/utils";
 import { useMarketData } from "@/hooks/useMarketData";
@@ -91,13 +91,69 @@ function LiveMarketCard({ market }: { market: typeof MARKETS[number] }) {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-const FEATURES = [
-  { icon: TrendingUp, title: "Long or Short Funding Rates",  color: "#2dd4bf", desc: "Take a directional view on perpetual funding rates. Fixed Payer profits when rates rise; Fixed Receiver profits when rates fall." },
-  { icon: Lock,       title: "Lock In a Fixed Rate",         color: "#c4b5fd", desc: "Hedge your perp positions by receiving a fixed rate and paying the variable funding rate — eliminating funding cost uncertainty." },
-  { icon: RefreshCw,  title: "Drift-Native Rate Feed",       color: "#9945ff", desc: "Funding rates are read directly from Drift Protocol's PerpMarket account on-chain, verified by program-owner check. No off-chain oracle or rate relay." },
-  { icon: Shield,     title: "Fully On-Chain",               color: "#43b4ca", desc: "Every position, settlement, and liquidation happens on Solana. Permissionless, non-custodial, and transparent." },
-  { icon: Zap,        title: "Capital Efficient",            color: "#fbbf24", desc: "Open positions with just 10% initial margin. Up to 10× leverage on funding rate exposure across 4 expiry durations." },
-  { icon: BarChart2,  title: "Multiple Durations",           color: "#f87171", desc: "Trade 7D, 30D, 90D, and 180D markets. Longer durations provide more stable exposure to persistent funding trends." },
+const REPO = "https://github.com/Welshcosh/fundex";
+
+const HIGHLIGHTS = [
+  {
+    icon: Zap,
+    title: "Sub-200k CU settlement",
+    metric: "~8,091 CU",
+    color: "#fbbf24",
+    desc: "Mean compute units across 32 live crank settlements on devnet — 0.017% of a block, 4% of the default per-tx budget.",
+    href: `${REPO}/blob/main/docs/benchmarks/cu-table.md`,
+    linkLabel: "CU benchmark",
+    external: true,
+  },
+  {
+    icon: Shield,
+    title: "On-chain rate verification",
+    metric: "0 trusted oracles",
+    color: "#9945ff",
+    desc: "Drift PerpMarket account verified by program-owner check; last_funding_rate read from a fixed byte offset; clamped to ±50% per hour.",
+    href: `${REPO}/blob/main/docs/SECURITY.md`,
+    linkLabel: "Threat T1",
+    external: true,
+  },
+  {
+    icon: Lock,
+    title: "Audit-lite security review",
+    metric: "10 threats × file:line",
+    color: "#43b4ca",
+    desc: "Self-audit covering oracle, settlement DoS, reentrancy, math overflow, MEV, and 5 more — every mitigation cross-referenced to source.",
+    href: `${REPO}/blob/main/docs/SECURITY.md`,
+    linkLabel: "SECURITY.md",
+    external: true,
+  },
+  {
+    icon: BarChart2,
+    title: "12-month backtest",
+    metric: "180-day funding history",
+    color: "#2dd4bf",
+    desc: "Binance perp funding for BTC/ETH/SOL — SOL averaging −5% APR (longs actually receive), with a −75% spike visible in the chart.",
+    href: "/charts/funding-history.png",
+    linkLabel: "View chart",
+    external: false,
+  },
+  {
+    icon: Cpu,
+    title: "ML rate advisor",
+    metric: "76.7% out-of-sample",
+    color: "#c4b5fd",
+    desc: "Ridge + Logistic + LightGBM ensemble trained on 6 years of funding history. Purged walk-forward CV. 30-day horizon shown.",
+    href: "/charts/ml-dir-accuracy.png",
+    linkLabel: "Accuracy chart",
+    external: false,
+  },
+  {
+    icon: CheckCircle2,
+    title: "Honest test coverage",
+    metric: "Manual + audit + CU bench",
+    color: "#f87171",
+    desc: "No green CI suite yet. Coverage matrix maps every instruction to its actual verification level today, plus a roadmap to restore unit tests.",
+    href: `${REPO}/blob/main/docs/TESTING.md`,
+    linkLabel: "TESTING.md",
+    external: true,
+  },
 ];
 
 const HOW_IT_WORKS = [
@@ -133,8 +189,8 @@ export default function LandingPage() {
             {" "}on Solana
           </h1>
 
-          <p className="text-base sm:text-lg mb-10" style={{ color: "#6b6890", maxWidth: "580px" }}>
-            A Solana-native reference implementation of a fixed-for-floating funding rate swap. Reads Drift Protocol funding rates on-chain, settles in sub-200k CU, priced against a 12-month backtest.
+          <p className="text-base sm:text-lg mb-10" style={{ color: "#6b6890", maxWidth: "620px" }}>
+            A Solana-native fixed-for-floating funding rate swap, built as a reference implementation. Drift PerpMarket reads verified on-chain, ~8k CU per settlement, audit-lite review across 10 threat classes.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -143,6 +199,11 @@ export default function LandingPage() {
               style={{ background: "linear-gradient(135deg,#9945ff,#7b61ff)", color: "#fff", boxShadow: "0 4px 24px rgba(153,69,255,0.35)" }}>
               Launch App <ArrowRight size={15} />
             </Link>
+            <a href={REPO} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl font-bold text-sm w-full sm:w-auto justify-center"
+              style={{ background: "rgba(255,255,255,0.04)", color: "#c4b5fd", border: "1px solid rgba(153,69,255,0.2)" }}>
+              <Code2 size={15} /> View on GitHub
+            </a>
             <Link href="/markets"
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl font-bold text-sm w-full sm:w-auto justify-center"
               style={{ background: "rgba(255,255,255,0.04)", color: "#8b87a8", border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -185,21 +246,52 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* ── Features ── */}
+      {/* ── Engineering Highlights ── */}
       <Section>
-        <h2 className="text-xl font-bold mb-8 text-center" style={{ color: "#ede9fe" }}>Why Fundex</h2>
+        <div className="text-center mb-8">
+          <h2 className="text-xl font-bold mb-2" style={{ color: "#ede9fe" }}>Engineering Highlights</h2>
+          <p className="text-sm" style={{ color: "#6b6890" }}>Every claim links to the underlying source, benchmark, or audit document.</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="p-5 rounded-2xl"
-              style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: `${f.color}18`, border: `1px solid ${f.color}30` }}>
-                <f.icon size={16} style={{ color: f.color }} />
+          {HIGHLIGHTS.map((h) => (
+            <a key={h.title} href={h.href} target="_blank" rel="noopener noreferrer" className="block group">
+              <div className="p-5 rounded-2xl h-full transition-all group-hover:border-opacity-40"
+                style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                    style={{ background: `${h.color}18`, border: `1px solid ${h.color}30` }}>
+                    <h.icon size={16} style={{ color: h.color }} />
+                  </div>
+                  <div className="text-xs font-mono font-bold px-2 py-1 rounded-md"
+                    style={{ background: `${h.color}10`, color: h.color, border: `1px solid ${h.color}20` }}>
+                    {h.metric}
+                  </div>
+                </div>
+                <div className="font-bold text-sm mb-2" style={{ color: "#ede9fe" }}>{h.title}</div>
+                <div className="text-sm leading-relaxed mb-4" style={{ color: "#6b6890" }}>{h.desc}</div>
+                <div className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: h.color }}>
+                  {h.linkLabel} {h.external ? <ExternalLink size={11} /> : <ArrowRight size={11} />}
+                </div>
               </div>
-              <div className="font-bold text-sm mb-2" style={{ color: "#ede9fe" }}>{f.title}</div>
-              <div className="text-sm leading-relaxed" style={{ color: "#6b6890" }}>{f.desc}</div>
-            </div>
+            </a>
           ))}
+        </div>
+      </Section>
+
+      {/* ── Scope & Prior Art ── */}
+      <Section>
+        <div className="rounded-2xl p-6 sm:p-8"
+          style={{ background: "#0d0c1a", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#c4b5fd" }}>
+            Scope & Prior Art
+          </div>
+          <p className="text-sm leading-relaxed mb-3" style={{ color: "#8b87a8" }}>
+            Fundex is a <strong style={{ color: "#ede9fe" }}>reference implementation, not a production trading venue</strong>.
+            {" "}<a href="https://docs.pendle.finance/Boros" target="_blank" rel="noopener noreferrer" style={{ color: "#c4b5fd", textDecoration: "underline" }}>Pendle Boros</a> (Arbitrum, early 2025) is the existing production funding rate swap in this category. Fundex makes different architectural choices from the Solana-native angle: on-chain Drift rate verification, per-market isolated vaults, and AMM-style dynamic LP fees.
+          </p>
+          <p className="text-sm leading-relaxed" style={{ color: "#8b87a8" }}>
+            Not audited. Not stress-tested with real LP capital. 12 months of backtest data show SOL-PERP funding averaging −5% APR (longs receive funding) and BTC at +5% — far below the threshold where most traders would pay to hedge. Submitted as a technical reference for the IRS primitive; product-market fit is an open question this project does not try to answer.
+          </p>
         </div>
       </Section>
 
@@ -223,7 +315,7 @@ export default function LandingPage() {
 
       {/* ── Footer ── */}
       <footer style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-lg flex items-center justify-center"
               style={{ background: "linear-gradient(135deg,#9945ff,#43b4ca)" }}>
@@ -233,7 +325,15 @@ export default function LandingPage() {
             </div>
             <span className="text-xs font-bold" style={{ color: "#4a4568" }}>fundex</span>
           </div>
-          <span className="text-xs" style={{ color: "#2d2b45" }}>Built for Seoulana WarmUp Hackathon 2026</span>
+          <div className="flex items-center gap-4 text-xs" style={{ color: "#4a4568" }}>
+            <a href={REPO} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:opacity-70 transition-opacity">
+              <Code2 size={11} /> GitHub
+            </a>
+            <a href={`${REPO}/blob/main/README.md`} target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">README</a>
+            <a href={`${REPO}/blob/main/docs/SECURITY.md`} target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">Security</a>
+            <a href={`${REPO}/blob/main/docs/TESTING.md`} target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">Testing</a>
+          </div>
+          <span className="text-xs text-center sm:text-right" style={{ color: "#2d2b45" }}>Seoulana WarmUp 2026 · Colosseum DeFi & Payments</span>
         </div>
       </footer>
 
