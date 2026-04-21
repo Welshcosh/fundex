@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import * as ort from "onnxruntime-node";
+import type * as ort from "onnxruntime-node";
 import { join } from "path";
+
+// Lazy-loaded so a missing native binary (happens on some serverless targets)
+// falls back to Logistic-only inference instead of crashing the module.
+let ortModulePromise: Promise<typeof ort | null> | null = null;
+function loadOrt(): Promise<typeof ort | null> {
+  if (!ortModulePromise) {
+    ortModulePromise = import("onnxruntime-node").catch((e) => {
+      console.warn("onnxruntime-node unavailable, falling back to Logistic:", e instanceof Error ? e.message : e);
+      return null;
+    });
+  }
+  return ortModulePromise;
+}
 import MODEL_DATA from "@/lib/fundex/rate-model.json";
 import { MODEL_HAIKU, GATEWAY_FALLBACK_ORDER } from "@/lib/fundex/ai-models";
 import { rateToAprPct, truncateError } from "@/lib/utils";
@@ -134,10 +147,13 @@ async function getOnnxSession(duration: number): Promise<ort.InferenceSession | 
   const model = models[key];
   if (!model || model.type !== "ensemble" || !(model as EnsembleModel).has_onnx) return null;
 
+  const ortModule = await loadOrt();
+  if (!ortModule) return null;
+
   try {
     const onnxFile = (model as EnsembleModel).onnx_file!;
     const onnxPath = join(process.cwd(), "src/lib/fundex", onnxFile);
-    const session = await ort.InferenceSession.create(onnxPath);
+    const session = await ortModule.InferenceSession.create(onnxPath);
     onnxSessions[key] = session;
     return session;
   } catch (e) {
@@ -147,7 +163,9 @@ async function getOnnxSession(duration: number): Promise<ort.InferenceSession | 
 }
 
 async function runLgbInference(session: ort.InferenceSession, feat: number[]): Promise<number> {
-  const inputTensor = new ort.Tensor("float32", Float32Array.from(feat), [1, feat.length]);
+  const ortModule = await loadOrt();
+  if (!ortModule) return 0.5;
+  const inputTensor = new ortModule.Tensor("float32", Float32Array.from(feat), [1, feat.length]);
   const results = await session.run({ input: inputTensor });
   // LightGBM ONNX outputs: "label" (int64) and "probabilities" (float32 [1, 2])
   const probKey = Object.keys(results).find(k => k.includes("prob")) ?? "probabilities";
