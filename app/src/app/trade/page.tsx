@@ -106,6 +106,8 @@ function TradePageInner() {
             style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
             <style>{`@media (min-width: 768px) { .sidebar-inner { width: 340px; flex-shrink: 0; } }`}</style>
             <div className="sidebar-inner flex flex-col md:overflow-hidden">
+              {/* AI Rate Advisor — elevated to top of sidebar for visibility */}
+              <RateAdvisor market={market} duration={duration} onchainData={onchainData} />
               <div style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                 <RateBook market={market} onchainData={onchainData} />
               </div>
@@ -114,7 +116,6 @@ function TradePageInner() {
                 receiverLots={onchainData.receiverLots}
                 live={onchainData.live}
               />
-              <RateAdvisor market={market} duration={duration} onchainData={onchainData} />
               <div className="md:overflow-auto">
                 <OrderPanel market={market} duration={duration} onchainData={onchainData} />
               </div>

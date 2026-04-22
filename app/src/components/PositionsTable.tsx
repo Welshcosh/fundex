@@ -19,6 +19,48 @@ const lam = (n: number) => n / 1_000_000;
 
 // ─── Risk Badge ───────────────────────────────────────────────────────────────
 
+function RiskGauge({ score, color }: { score: number; color: string }) {
+  const size = 36;
+  const stroke = 3.5;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, score));
+  const offset = circ - (clamped / 100) * circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label={`risk ${score}`}>
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="rgba(255,255,255,0.06)"
+        strokeWidth={stroke}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={offset}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        style={{ transition: "stroke-dashoffset 0.5s ease" }}
+      />
+      <text
+        x={size / 2}
+        y={size / 2 + 3.5}
+        textAnchor="middle"
+        style={{ fill: color, fontFamily: "ui-monospace, monospace", fontSize: 10.5, fontWeight: 700 }}
+      >
+        {clamped}
+      </text>
+    </svg>
+  );
+}
+
 function RiskBadge({ pos, oracleRate }: { pos: OnchainPosition; oracleRate: number | undefined }) {
   // Pull live OI for the position's (market, duration) so the risk LLM can reason
   // about imbalance instead of seeing 0/0 and hallucinating "balanced OI".
@@ -31,29 +73,56 @@ function RiskBadge({ pos, oracleRate }: { pos: OnchainPosition; oracleRate: numb
 
   if (risk.status === "idle" || risk.status === "loading") {
     return (
-      <div className="flex items-center gap-1.5">
-        <span className="w-2.5 h-2.5 border border-white/20 border-t-white/50 rounded-full animate-spin" />
-        <span className="text-[10px]" style={{ color: "#4a4568" }}>scoring…</span>
+      <div className="flex items-center gap-2">
+        <span className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)" }}>
+          <span className="w-3 h-3 border border-white/20 border-t-white/50 rounded-full animate-spin" />
+        </span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#c4b5fd" }}>🧮 Risk</span>
+          <span className="text-[10px] font-mono" style={{ color: "#4a4568" }}>scoring…</span>
+        </div>
       </div>
     );
   }
   if (risk.status === "error") {
-    return <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.04)", color: "#6b6890" }}>N/A</span>;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)" }}>
+          <span className="text-[10px] font-mono" style={{ color: "#4a4568" }}>N/A</span>
+        </span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#c4b5fd" }}>🧮 Risk</span>
+          <span className="text-[10px] font-mono" style={{ color: "#4a4568" }}>unavailable</span>
+        </div>
+      </div>
+    );
   }
 
   const { score, reason, level } = risk.data;
   const color = level === "high" ? "#f87171" : level === "medium" ? "#fbbf24" : "#2dd4bf";
-  const bg = level === "high" ? "rgba(248,113,113,0.1)" : level === "medium" ? "rgba(251,191,36,0.1)" : "rgba(45,212,191,0.1)";
 
   return (
-    <div className="flex items-center gap-1.5" title={reason}>
-      <div className="w-8 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-        <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
+    <div className="flex items-center gap-2.5 min-w-[220px] max-w-[300px]" title={reason}>
+      <RiskGauge score={score} color={color} />
+      <div className="flex flex-col min-w-0">
+        <span className="text-[9px] font-bold uppercase tracking-wider leading-tight" style={{ color }}>
+          💬 {level}
+        </span>
+        <span
+          className="text-[10.5px] leading-snug mt-0.5"
+          style={{
+            color: "#9ca3af",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {reason}
+        </span>
       </div>
-      <span className="text-[11px] font-mono font-semibold px-1 py-0.5 rounded"
-        style={{ background: bg, color }}>
-        {score}
-      </span>
     </div>
   );
 }

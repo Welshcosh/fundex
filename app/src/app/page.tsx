@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { ArrowRight, Shield, Zap, TrendingUp, BarChart2, Lock, RefreshCw, Cpu, CheckCircle2, Code2, ExternalLink } from "lucide-react";
 import { MARKETS, DurationVariant } from "@/lib/constants";
-import { formatRate, formatRateAnnualized, formatUSD } from "@/lib/utils";
+import { formatRate, formatRateAnnualized, formatUSD, rateToAprPct } from "@/lib/utils";
 import { useMarketData } from "@/hooks/useMarketData";
+import type { RateAdvisorOutput } from "@/app/api/ai/rate-advisor/route";
 
 // ─── Shared wrapper ───────────────────────────────────────────────────────────
 function Section({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -12,6 +14,198 @@ function Section({ children, className = "" }: { children: React.ReactNode; clas
     <section className={`w-full px-4 sm:px-8 lg:px-12 py-16 ${className}`}>
       <div className="max-w-6xl mx-auto">{children}</div>
     </section>
+  );
+}
+
+// ─── AI Signal Preview (live hero card) ──────────────────────────────────────
+const AI_DEFAULT_MARKET = MARKETS[2];  // SOL (highest activity, best demo)
+const AI_DEFAULT_DURATION = DurationVariant.Days30;
+const AI_DEFAULT_DUR_DAYS = 30;
+const AI_MARKET_LABEL = "SOL-PERP · 30d";
+const AI_TRADE_HREF = `/trade?perp=${AI_DEFAULT_MARKET.perpIndex}&dur=${AI_DEFAULT_DURATION}`;
+
+function AISignalPreview() {
+  const market = useMarketData(AI_DEFAULT_MARKET, AI_DEFAULT_DURATION);
+  const [signal, setSignal] = useState<RateAdvisorOutput | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "error" | "done">("idle");
+  const oracle = market.variableRate;
+
+  useEffect(() => {
+    if (!market.live || oracle <= 0) return;
+    let cancelled = false;
+    setState("loading");
+    (async () => {
+      try {
+        const r = await fetch("/api/ai/rate-advisor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            market: AI_DEFAULT_MARKET.symbol,
+            duration: AI_DEFAULT_DUR_DAYS,
+            currentOracleRate: oracle,
+          }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as RateAdvisorOutput;
+        if (!cancelled) {
+          setSignal(data);
+          setState("done");
+        }
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [market.live, oracle]);
+
+  const dirColor =
+    signal?.direction === "up" ? "#2dd4bf" :
+    signal?.direction === "down" ? "#f87171" : "#9ca3af";
+  const dirLabel = signal?.direction === "up" ? "UP" : signal?.direction === "down" ? "DOWN" : "NEUTRAL";
+  const recommendedSide = signal?.direction === "up" ? "Fixed Payer" : signal?.direction === "down" ? "Fixed Receiver" : "—";
+  const oracleApr = rateToAprPct(oracle);
+  const recommendedApr = signal ? rateToAprPct(signal.recommendedFixedRate) : null;
+  const confColor =
+    signal?.confidence === "high" ? "#2dd4bf" :
+    signal?.confidence === "medium" ? "#fbbf24" : "#9ca3af";
+
+  return (
+    <Link
+      href={AI_TRADE_HREF}
+      className="block group"
+    >
+      <div
+        className="relative rounded-3xl p-6 sm:p-8 overflow-hidden transition-all"
+        style={{
+          background: "linear-gradient(135deg, rgba(153,69,255,0.12), rgba(67,180,202,0.06) 50%, #0d0c1a 100%)",
+          border: "1px solid rgba(153,69,255,0.25)",
+        }}
+      >
+        {/* decorative accent blob */}
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            top: "-40%",
+            right: "-10%",
+            width: "320px",
+            height: "320px",
+            background: "radial-gradient(circle, rgba(153,69,255,0.16), transparent 70%)",
+          }}
+        />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:gap-8 gap-5">
+          {/* Left — label + direction */}
+          <div className="flex-shrink-0 flex md:flex-col items-center md:items-start gap-4 md:gap-3">
+            <div
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
+              style={{
+                background: "rgba(153,69,255,0.18)",
+                color: "#c4b5fd",
+                border: "1px solid rgba(153,69,255,0.3)",
+              }}
+            >
+              <span aria-label="ML">🧮</span> Today&apos;s AI signal
+            </div>
+            <div className="flex items-center gap-2">
+              {signal ? (
+                <>
+                  <span
+                    className="inline-flex items-center justify-center rounded-xl"
+                    style={{
+                      width: 48,
+                      height: 48,
+                      background: `${dirColor}15`,
+                      border: `1px solid ${dirColor}35`,
+                      color: dirColor,
+                      fontSize: 24,
+                      fontWeight: 900,
+                      letterSpacing: "-1px",
+                    }}
+                  >
+                    {signal.direction === "up" ? "↑" : signal.direction === "down" ? "↓" : "→"}
+                  </span>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-[22px] font-black tracking-tight" style={{ color: dirColor }}>
+                      {dirLabel}
+                    </span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: confColor }}>
+                      {signal.confidence} conf
+                    </span>
+                  </div>
+                </>
+              ) : state === "loading" ? (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9945ff" }} />
+                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9945ff", animationDelay: "0.15s" }} />
+                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9945ff", animationDelay: "0.30s" }} />
+                </div>
+              ) : (
+                <span className="text-sm font-mono" style={{ color: "#4a4568" }}>
+                  {state === "error" ? "Advisor unavailable" : "Warming up…"}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Middle — numbers */}
+          <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#6b6890" }}>Market</div>
+              <div className="text-sm font-bold" style={{ color: "#ede9fe" }}>{AI_MARKET_LABEL}</div>
+              <div className="text-[10px] font-mono mt-0.5" style={{ color: "#4a4568" }}>oracle {oracleApr.toFixed(2)}%</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#6b6890" }}>Recommend</div>
+              <div className="text-sm font-bold" style={{ color: "#c4b5fd" }}>{recommendedSide}</div>
+              <div className="text-[10px] font-mono mt-0.5" style={{ color: dirColor }}>
+                {recommendedApr !== null ? `${recommendedApr.toFixed(2)}% fixed` : "—"}
+              </div>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#6b6890" }}>
+                OOS accuracy
+              </div>
+              <div className="text-sm font-bold" style={{ color: "#ede9fe" }}>
+                {signal ? `${(signal.dirAccuracy * 100).toFixed(1)}%` : "—"}
+              </div>
+              <div className="text-[10px] font-mono mt-0.5" style={{ color: "#4a4568" }}>purged walk-forward CV</div>
+            </div>
+          </div>
+
+          {/* Right — CTA */}
+          <div className="flex-shrink-0">
+            <div
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-xs transition-transform group-hover:translate-x-0.5"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                color: "#c4b5fd",
+                border: "1px solid rgba(153,69,255,0.25)",
+              }}
+            >
+              Open trade <ArrowRight size={13} />
+            </div>
+          </div>
+        </div>
+
+        {/* Reasoning row */}
+        {signal?.reasoning && (
+          <div
+            className="relative z-10 mt-5 pt-4 flex items-start gap-2"
+            style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <span className="text-[11px] mt-0.5" aria-label="LLM">💬</span>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: "#c4b5fd" }}>
+                Claude says
+              </span>
+              <p className="text-[12px] leading-relaxed" style={{ color: "#d1d5db", maxWidth: "800px" }}>
+                {signal.reasoning}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </Link>
   );
 }
 
@@ -212,6 +406,11 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ── AI Signal Preview ── */}
+      <Section className="!pt-0">
+        <AISignalPreview />
+      </Section>
 
       {/* ── Stats ── */}
       <Section>
