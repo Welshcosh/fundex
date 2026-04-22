@@ -104,7 +104,19 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast("error", "Transaction failed", truncateError(msg));
+      // sendAndConfirm sometimes retries a tx that already landed; RPC returns
+      // "This transaction has already been processed" — harmless, surface as success.
+      if (/already (been )?processed/i.test(msg)) {
+        refreshBalance();
+        window.dispatchEvent(new Event("fundex:positions:refresh"));
+        toast(
+          "success",
+          "Position opened",
+          `${lots} lot${lots > 1 ? "s" : ""} · ${market.name}`,
+        );
+      } else {
+        toast("error", "Transaction failed", truncateError(msg));
+      }
     } finally {
       setLoading(false);
     }

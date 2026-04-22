@@ -156,7 +156,13 @@ export function PositionsTable() {
       toast("success", "Position closed", pos.marketName, sig);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast("error", "Close failed", truncateError(msg));
+      if (/already (been )?processed/i.test(msg)) {
+        refresh();
+        refreshHistory();
+        toast("success", "Position closed", pos.marketName);
+      } else {
+        toast("error", "Close failed", truncateError(msg));
+      }
     } finally {
       setClosing(null);
     }
