@@ -5,18 +5,30 @@ import { TrendingUp, Activity, ArrowUpRight } from "lucide-react";
 import { MARKETS, DURATION_LABELS, DurationVariant, MarketInfo } from "@/lib/constants";
 import { formatRate, formatRateAnnualized, formatUSD } from "@/lib/utils";
 import { useMarketData } from "@/hooks/useMarketData";
+import { useRatePredictions } from "@/hooks/useRatePredictions";
 
 const DURATIONS = [DurationVariant.Days7, DurationVariant.Days30, DurationVariant.Days90, DurationVariant.Days180];
 const DUR_LABELS = ["7D", "30D", "90D", "180D"];
 
-/** Mini SVG yield curve — 4 fixed rates over 4 durations, variable rate as dashed baseline */
-function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRate: number; live: boolean }) {
-  const W = 220, H = 52;
+/** Mini SVG yield curve — 4 fixed rates, live variable rate baseline, optional ML predicted curve */
+function RateCurve({
+  rates,
+  variableRate,
+  live,
+  predictedRates,
+}: {
+  rates: number[];
+  variableRate: number;
+  live: boolean;
+  predictedRates?: (number | null)[];
+}) {
+  const W = 240, H = 60;
   const PX = 10, PY = 8;
   const plotW = W - PX * 2;
   const plotH = H - PY * 2;
 
-  const allVals = [...rates, variableRate].filter(Boolean);
+  const predValid = predictedRates?.filter((v): v is number => v !== null && v !== undefined) ?? [];
+  const allVals = [...rates, variableRate, ...predValid].filter((v) => Number.isFinite(v) && v !== 0);
   if (allVals.length === 0) return null;
 
   const minR = Math.min(...allVals) * 0.8;
@@ -30,8 +42,24 @@ function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRat
   const ys = rates.map(toY);
   const pathD = rates.map((_, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${ys[i].toFixed(1)}`).join(" ");
 
-  // Determine curve shape label
-  const isNormal = rates[3] > rates[0]; // longer = higher = normal
+  // ML prediction path — only if we have at least 2 valid points
+  const predYs = (predictedRates ?? []).map((r) => (r != null && Number.isFinite(r) ? toY(r) : null));
+  const firstPredIdx = predYs.findIndex((y) => y !== null);
+  const hasPrediction = predYs.filter((y) => y !== null).length >= 2;
+  let predPathD = "";
+  if (hasPrediction) {
+    const cmds: string[] = [];
+    let started = false;
+    predYs.forEach((y, i) => {
+      if (y === null) return;
+      cmds.push(`${!started ? "M" : "L"} ${toX(i).toFixed(1)} ${y.toFixed(1)}`);
+      started = true;
+    });
+    predPathD = cmds.join(" ");
+  }
+
+  // Shape label: use ML direction if available (forward-looking), fall back to fixed-rate shape
+  const isNormal = rates[3] > rates[0];
   const isInverted = rates[3] < rates[0];
   const shapeLabel = !live ? "" : isNormal ? "Normal" : isInverted ? "Inverted" : "Flat";
   const shapeColor = isNormal ? "#2dd4bf" : isInverted ? "#f87171" : "#8b87a8";
@@ -39,7 +67,15 @@ function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRat
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px]" style={{ color: "#4a4568" }}>Term Structure</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px]" style={{ color: "#4a4568" }}>Term Structure</span>
+          {hasPrediction && (
+            <span className="inline-flex items-center gap-1 text-[9px] font-semibold"
+              style={{ color: "#fbbf24" }}>
+              <span aria-label="ML">🧮</span> ML overlay
+            </span>
+          )}
+        </div>
         {live && shapeLabel && (
           <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md"
             style={{ background: `${shapeColor}18`, color: shapeColor, border: `1px solid ${shapeColor}30` }}>
@@ -60,7 +96,7 @@ function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRat
           />
         )}
 
-        {/* Curve line */}
+        {/* Market fixed-rate curve */}
         <path d={pathD} fill="none"
           stroke={live ? "#9945ff" : "#2d2b45"}
           strokeWidth={1.5}
@@ -69,7 +105,26 @@ function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRat
           strokeLinejoin="round"
         />
 
-        {/* Dots */}
+        {/* ML predicted curve overlay */}
+        {hasPrediction && (
+          <>
+            <path d={predPathD} fill="none"
+              stroke="#fbbf24"
+              strokeWidth={1.5}
+              strokeDasharray="3,3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.85}
+            />
+            {predYs.map((y, i) =>
+              y !== null ? (
+                <circle key={`p${i}`} cx={toX(i)} cy={y} r={2} fill="#fbbf24" stroke="#0d0c1a" strokeWidth={0.5} />
+              ) : null,
+            )}
+          </>
+        )}
+
+        {/* Market curve dots */}
         {live && ys.map((y, i) => (
           <circle key={i} cx={toX(i)} cy={y} r={2.5} fill="#9945ff" />
         ))}
@@ -82,6 +137,22 @@ function RateCurve({ rates, variableRate, live }: { rates: number[]; variableRat
           </text>
         ))}
       </svg>
+      {hasPrediction && (
+        <div className="flex items-center gap-3 px-1 text-[9px] font-mono" style={{ color: "#4a4568" }}>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-2.5 h-[1.5px]" style={{ background: "#9945ff" }} />
+            Market
+          </span>
+          <span className="inline-flex items-center gap-1" style={{ color: "#fbbf24" }}>
+            <span className="inline-block w-2.5 h-[1.5px]" style={{ background: "#fbbf24" }} />
+            ML predicted {firstPredIdx >= 0 ? "" : ""}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-2.5 h-[1.5px] border-t border-dashed" style={{ borderColor: "#2dd4bf" }} />
+            Variable now
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -100,6 +171,9 @@ function MarketRow({ market }: { market: MarketInfo }) {
   const fixedRates = durData.map((d, di) =>
     live ? d.fixedRate : Math.round(market.baseRate * (0.88 + di * 0.02))
   );
+
+  // ML predictions — overlay on term-structure curve
+  const { predictions: predictedRates } = useRatePredictions(market, variableRate, live);
 
   return (
     <div className="rounded-2xl overflow-hidden"
@@ -129,9 +203,14 @@ function MarketRow({ market }: { market: MarketInfo }) {
 
         {/* Stats + Yield Curve */}
         <div className="flex items-center gap-4 md:gap-6">
-          {/* Mini yield curve */}
+          {/* Mini yield curve (with ML prediction overlay) */}
           <div className="hidden md:block">
-            <RateCurve rates={fixedRates} variableRate={variableRate} live={live} />
+            <RateCurve
+              rates={fixedRates}
+              variableRate={variableRate}
+              live={live}
+              predictedRates={predictedRates}
+            />
           </div>
 
           <div className="flex items-center gap-4 md:gap-6">
@@ -279,7 +358,8 @@ export default function MarketsPage() {
             Each market card shows its <span style={{ color: "#c4b5fd" }}>funding rate term structure</span> — the yield curve of fixed rates across maturities.
             A <span style={{ color: "#2dd4bf" }}>Normal</span> curve (longer = higher) signals the market expects rates to rise.
             An <span style={{ color: "#f87171" }}>Inverted</span> curve signals falling rate expectations.
-            The <span style={{ color: "#2dd4bf" }}>dashed line</span> shows the current live funding rate.
+            The <span style={{ color: "#2dd4bf" }}>dashed teal line</span> is the live variable rate.
+            The <span style={{ color: "#fbbf24" }}>amber overlay</span> is our ML ensemble&apos;s predicted rate per horizon — when it sits above or below the purple market curve, there&apos;s a spread the model thinks is mispriced.
           </p>
         </div>
 

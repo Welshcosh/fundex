@@ -30,9 +30,20 @@ interface Props {
   onchainData: OnchainMarketData;
 }
 
+const ASSISTANT_CLOSED_KEY = "fundex.assistant.closed";
+
 export function TradingAssistant({ market, duration, onchainData }: Props) {
+  // SSR renders closed (button). On the client we bump to open on first session
+  // visit — the `useEffect` below runs post-hydration so server + first-client
+  // render match, no hydration mismatch.
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+
+  useEffect(() => {
+    if (sessionStorage.getItem(ASSISTANT_CLOSED_KEY) !== "1") {
+      setOpen(true);
+    }
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -76,7 +87,7 @@ export function TradingAssistant({ market, duration, onchainData }: Props) {
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => { setOpen(true); if (typeof window !== "undefined") sessionStorage.removeItem(ASSISTANT_CLOSED_KEY); }}
         className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg transition-all hover:scale-105"
         style={{
           background: "linear-gradient(135deg, #9945ff, #6b21a8)",
@@ -113,7 +124,7 @@ export function TradingAssistant({ market, duration, onchainData }: Props) {
             {market.symbol} {DURATION_LABELS[duration]}
           </span>
         </div>
-        <button onClick={() => setOpen(false)} className="p-1 rounded transition-colors"
+        <button onClick={() => { setOpen(false); if (typeof window !== "undefined") sessionStorage.setItem(ASSISTANT_CLOSED_KEY, "1"); }} className="p-1 rounded transition-colors"
           style={{ color: "#6b7280" }}
           onMouseEnter={e => (e.currentTarget.style.color = "#e2e8f0")}
           onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}>

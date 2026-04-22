@@ -2,19 +2,143 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
+import { useEffect, useState, useMemo } from "react";
 
 const WalletMultiButton = dynamic(
   () => import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton),
   { ssr: false }
 );
 import { TrendingUp, TrendingDown, Wallet, BarChart2 } from "lucide-react";
-import { DURATION_LABELS, NOTIONAL_PER_LOT } from "@/lib/constants";
-import { formatUSD, formatAddress } from "@/lib/utils";
-import { usePositions } from "@/hooks/usePositions";
+import { DURATION_LABELS, NOTIONAL_PER_LOT, MARKETS } from "@/lib/constants";
+import { formatUSD, formatAddress, rateToAprPct } from "@/lib/utils";
+import { usePositions, type OnchainPosition } from "@/hooks/usePositions";
+import { useFundexClient } from "@/hooks/useFundexClient";
+import type { PortfolioSummaryInput, PortfolioSummaryOutput } from "@/app/api/ai/portfolio-summary/route";
+
+function useOracleRates() {
+  const client = useFundexClient();
+  const [rates, setRates] = useState<Record<number, number>>({});
+  useEffect(() => {
+    if (!client) return;
+    let cancelled = false;
+    (async () => {
+      const perps = MARKETS.map((m) => m.perpIndex);
+      try {
+        const res = await client.fetchOraclesMulti(perps);
+        if (cancelled) return;
+        const out: Record<number, number> = {};
+        for (const p of perps) {
+          const r = res[p];
+          if (r) out[p] = r.emaFundingRate;
+        }
+        setRates(out);
+      } catch {
+        // ignore — summary can still render with 0 rates
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [client]);
+  return rates;
+}
+
+function AIPortfolioSummary({ positions, oracleRates }: { positions: OnchainPosition[]; oracleRates: Record<number, number> }) {
+  const [summary, setSummary] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  // Bucket positions into stable cache key so we don't refire on every render.
+  const payload = useMemo<PortfolioSummaryInput>(() => ({
+    positions: positions.map((p) => {
+      const market = MARKETS.find((m) => m.perpIndex === p.perpIndex);
+      const variable = oracleRates[p.perpIndex] ?? 0;
+      return {
+        market: `${market?.symbol ?? "?"} ${DURATION_LABELS[p.duration]}`,
+        side: p.side === 0 ? "payer" : "receiver",
+        notionalUsd: p.lots * NOTIONAL_PER_LOT,
+        collateralUsd: p.collateralDeposited / 1_000_000,
+        unrealizedPnlUsd: p.unrealizedPnl / 1_000_000,
+        marginRatioBps: p.marginRatioBps,
+        daysToExpiry: Math.max(0, (p.expiryTs - Math.floor(Date.now() / 1000)) / 86400),
+        variableRateApr: rateToAprPct(variable),
+        fixedRateApr: rateToAprPct(p.fixedRate),
+        settlementsToLiq: p.settlementsToLiq,
+      };
+    }),
+  }), [positions, oracleRates]);
+
+  const bucketKey = useMemo(() =>
+    payload.positions.map((p) =>
+      `${p.market}|${p.side}|${Math.round(p.notionalUsd / 100)}|${Math.round(p.marginRatioBps / 100)}|${Math.round(p.daysToExpiry)}|${Math.round(p.variableRateApr)}|${Math.round(p.fixedRateApr)}|${p.settlementsToLiq ?? -1}`,
+    ).sort().join("#"),
+  [payload.positions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    (async () => {
+      try {
+        const r = await fetch("/api/ai/portfolio-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as PortfolioSummaryOutput;
+        if (!cancelled) {
+          setSummary(data.summary);
+          setState("done");
+        }
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bucketKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div
+      className="mb-6 rounded-2xl px-5 py-4 flex items-start gap-3"
+      style={{
+        background: "linear-gradient(135deg, rgba(153,69,255,0.10), rgba(67,180,202,0.05))",
+        border: "1px solid rgba(153,69,255,0.22)",
+      }}
+    >
+      <div
+        className="flex-shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-widest"
+        style={{
+          background: "rgba(153,69,255,0.18)",
+          color: "#c4b5fd",
+          border: "1px solid rgba(153,69,255,0.3)",
+          alignSelf: "flex-start",
+        }}
+      >
+        <span aria-label="LLM">💬</span> AI Summary
+      </div>
+      <div className="flex-1 min-w-0">
+        {state === "loading" && (
+          <div className="flex items-center gap-1.5 py-0.5">
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#9945ff" }} />
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#9945ff", animationDelay: "0.15s" }} />
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#9945ff", animationDelay: "0.30s" }} />
+            <span className="text-[12px] ml-1.5" style={{ color: "#6b6890" }}>Reading your portfolio…</span>
+          </div>
+        )}
+        {state === "error" && (
+          <span className="text-[12px] font-mono" style={{ color: "#6b6890" }}>Summary unavailable</span>
+        )}
+        {state === "done" && summary && (
+          <p className="text-[13px] leading-relaxed" style={{ color: "#e2e8f0" }}>
+            {summary}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function PortfolioPage() {
   const { connected, publicKey } = useWallet();
   const { positions, loading } = usePositions();
+  const oracleRates = useOracleRates();
 
   if (!connected) {
     return (
@@ -76,7 +200,7 @@ export default function PortfolioPage() {
       <div className="max-w-6xl mx-auto px-8 py-12">
 
         {/* Page header */}
-        <div className="mb-10">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2" style={{ color: "#ede9fe" }}>Portfolio</h1>
           {publicKey && (
             <div className="text-xs font-mono" style={{ color: "#4a4568" }}>
@@ -84,6 +208,11 @@ export default function PortfolioPage() {
             </div>
           )}
         </div>
+
+        {/* AI one-line summary (mentor feedback: surface AI on portfolio) */}
+        {!loading && positions.length > 0 && (
+          <AIPortfolioSummary positions={positions} oracleRates={oracleRates} />
+        )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
