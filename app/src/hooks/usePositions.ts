@@ -3,17 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { MARKETS, DurationVariant } from "@/lib/constants";
+import { MARKETS, DurationVariant, Side } from "@/lib/constants";
 import { USDC_MINT, DRIFT_PRICE_PRECISION, MAINT_MARGIN_BPS } from "@/lib/fundex/constants";
 import { PositionWithPnl } from "@/lib/fundex/client";
 import { useFundexClient } from "./useFundexClient";
-
-const ALL_DURATIONS = [
-  DurationVariant.Days7,
-  DurationVariant.Days30,
-  DurationVariant.Days90,
-  DurationVariant.Days180,
-];
 
 export interface OnchainPosition extends PositionWithPnl {
   perpIndex: number;
@@ -30,6 +23,10 @@ interface PositionsState {
   refresh: () => void;
 }
 
+/** Dispatch this to trigger an immediate refresh from anywhere (e.g. after
+ *  `openPosition` confirms). The hook listens for it and skips the 60s wait. */
+export const POSITIONS_REFRESH_EVENT = "fundex:positions:refresh";
+
 export function usePositions(): PositionsState {
   const client = useFundexClient();
   const { publicKey } = useWallet();
@@ -38,59 +35,119 @@ export function usePositions(): PositionsState {
   const inFlightRef = useRef(false);
 
   const fetch = useCallback(async () => {
-    if (!client || !publicKey) { setPositions([]); return; }
+    if (!client || !publicKey) {
+      setPositions([]);
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setLoading(true);
     try {
-      // Fetch oracles sequentially to stagger RPC burst
-      const oracleRates: Record<number, number> = {};
-      for (const m of MARKETS) {
-        const oracle = await client.fetchOracle(m.perpIndex);
-        oracleRates[m.perpIndex] = oracle?.emaFundingRate ?? m.baseRate;
+      // 1) All user's Position accounts in one RPC (getProgramAccounts + memcmp).
+      const userPositions = await client.fetchUserPositions(publicKey);
+      if (userPositions.length === 0) {
+        setPositions([]);
+        return;
       }
 
-      // Fetch positions sequentially per market (4 at a time max) to avoid RPC burst
-      const results: (OnchainPosition | null)[] = [];
-      for (const market of MARKETS) {
-        const batch = await Promise.all(
-          ALL_DURATIONS.map(async (duration) => {
-            const pos = await client.fetchPosition(publicKey, market.perpIndex, duration);
-            if (!pos) return null;
+      // 2) Unique market PDAs → single batched fetch.
+      const uniqueMarketKeys = Array.from(
+        new Set(userPositions.map((p) => p.market.toBase58())),
+      );
+      const uniqueMarketPdas = uniqueMarketKeys.map(
+        (s) => userPositions.find((p) => p.market.toBase58() === s)!.market,
+      );
+      const marketStates = await client.fetchMarketsMulti(uniqueMarketPdas);
 
-            const variableRate = oracleRates[market.perpIndex] ?? market.baseRate;
-            const pnlPerSettlement =
-              (variableRate - pos.fixedRate) * pos.lots * pos.notionalPerLot / DRIFT_PRICE_PRECISION;
-            const adjPnl = pos.side === 0 ? pnlPerSettlement : -pnlPerSettlement;
-            const maintMargin = (pos.lots * pos.notionalPerLot * MAINT_MARGIN_BPS) / 10_000;
-            const maxLossBuffer = pos.collateralDeposited + pos.unrealizedPnl - maintMargin;
-            const settlementsToLiq =
-              adjPnl < 0 && maxLossBuffer > 0
-                ? Math.floor(maxLossBuffer / Math.abs(adjPnl))
-                : null;
+      const marketByKey = new Map(
+        uniqueMarketKeys.map((k, i) => [k, marketStates[i]] as const),
+      );
 
-            return {
-              ...pos,
-              perpIndex: market.perpIndex,
-              duration,
-              marketName: market.name,
-              userTokenAccount: getAssociatedTokenAddressSync(USDC_MINT, publicKey),
-              settlementsToLiq,
-            } satisfies OnchainPosition;
-          })
-        );
-        results.push(...batch);
+      // 3) Unique perp indices → single batched oracle fetch.
+      const uniquePerpIndices = Array.from(
+        new Set(
+          marketStates
+            .filter((m): m is NonNullable<typeof m> => m !== null)
+            .map((m) => m.perpIndex),
+        ),
+      );
+      const oracles = await client.fetchOraclesMulti(uniquePerpIndices);
+
+      // 4) Assemble display rows (mirrors prior PnL math).
+      const ata = getAssociatedTokenAddressSync(USDC_MINT, publicKey);
+      const results: OnchainPosition[] = [];
+      for (const p of userPositions) {
+        const market = marketByKey.get(p.market.toBase58());
+        if (!market) continue;
+        const marketMeta = MARKETS.find((mm) => mm.perpIndex === market.perpIndex);
+        if (!marketMeta) continue;
+        const duration = market.durationVariant as DurationVariant;
+
+        const variableRate =
+          oracles[market.perpIndex]?.emaFundingRate ?? marketMeta.baseRate;
+
+        const actualDelta = market.cumulativeActualIndex - p.entryActualIndex;
+        const fixedDelta = market.cumulativeFixedIndex - p.entryFixedIndex;
+        const netDelta = actualDelta - fixedDelta;
+        const rawPnl = (netDelta * p.lots * market.notionalPerLot) / DRIFT_PRICE_PRECISION;
+        const unrealizedPnl = p.side === Side.FixedPayer ? rawPnl : -rawPnl;
+        const notional = market.notionalPerLot * p.lots;
+        const effective = p.collateralDeposited + unrealizedPnl;
+        const marginRatioBps =
+          notional > 0 ? Math.floor((Math.max(effective, 0) * 10_000) / notional) : 99_999;
+
+        const pnlPerSettlement =
+          ((variableRate - market.fixedRate) * p.lots * market.notionalPerLot) /
+          DRIFT_PRICE_PRECISION;
+        const adjPnl = p.side === Side.FixedPayer ? pnlPerSettlement : -pnlPerSettlement;
+        const maintMargin = (p.lots * market.notionalPerLot * MAINT_MARGIN_BPS) / 10_000;
+        const maxLossBuffer = p.collateralDeposited + unrealizedPnl - maintMargin;
+        const settlementsToLiq =
+          adjPnl < 0 && maxLossBuffer > 0 ? Math.floor(maxLossBuffer / Math.abs(adjPnl)) : null;
+
+        results.push({
+          address: p.pda,
+          market: p.market,
+          side: p.side,
+          lots: p.lots,
+          collateralDeposited: p.collateralDeposited,
+          entryActualIndex: p.entryActualIndex,
+          entryFixedIndex: p.entryFixedIndex,
+          openTs: p.openTs,
+          unrealizedPnl,
+          marginRatioBps,
+          expiryTs: market.expiryTs,
+          fixedRate: market.fixedRate,
+          notionalPerLot: market.notionalPerLot,
+          perpIndex: market.perpIndex,
+          duration,
+          marketName: marketMeta.name,
+          userTokenAccount: ata,
+          settlementsToLiq,
+        });
       }
-      setPositions(results.filter((p): p is OnchainPosition => p !== null));
+      // Stable order (getProgramAccounts returns in arbitrary order).
+      results.sort((a, b) => a.perpIndex - b.perpIndex || a.duration - b.duration);
+      setPositions(results);
     } finally {
       setLoading(false);
       inFlightRef.current = false;
     }
   }, [client, publicKey]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
 
-  // Auto-refresh every 60s
+  // Manual refresh trigger via window event (fired by OrderPanel etc.
+  // after a successful openPosition / closePosition — no 60s wait).
+  useEffect(() => {
+    const handler = () => fetch();
+    window.addEventListener(POSITIONS_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(POSITIONS_REFRESH_EVENT, handler);
+  }, [fetch]);
+
+  // Background auto-refresh every 60s.
   useEffect(() => {
     const id = setInterval(fetch, 60_000);
     return () => clearInterval(id);

@@ -94,6 +94,8 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
         userTokenAccount
       );
       refreshBalance();
+      // Trigger immediate positions refresh (instead of waiting for the 60s auto-refresh).
+      window.dispatchEvent(new Event("fundex:positions:refresh"));
       toast(
         "success",
         "Position opened",

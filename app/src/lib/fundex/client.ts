@@ -109,6 +109,89 @@ export class FundexClient {
     }
   }
 
+  /**
+   * Batch-fetch all Position accounts that belong to `user` in a single RPC
+   * (getProgramAccounts with a memcmp filter on the leading `user: Pubkey`
+   * field at offset 8). Returns raw Position fields only — callers combine
+   * with fetchMarketsMulti / fetchOraclesMulti for PnL.
+   */
+  async fetchUserPositions(user: PublicKey): Promise<
+    Array<{
+      pda: PublicKey;
+      market: PublicKey;
+      side: number;
+      lots: number;
+      collateralDeposited: number;
+      entryActualIndex: number;
+      entryFixedIndex: number;
+      openTs: number;
+    }>
+  > {
+    // Discriminator (8) precedes `user: Pubkey` in Position.
+    const USER_OFFSET = 8;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accs = await (this.program.account as any).position.all([
+      { memcmp: { offset: USER_OFFSET, bytes: user.toBase58() } },
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return accs.map((a: any) => ({
+      pda: a.publicKey,
+      market: a.account.market,
+      side: a.account.side,
+      lots: a.account.lots.toNumber(),
+      collateralDeposited: a.account.collateralDeposited.toNumber(),
+      entryActualIndex: a.account.entryActualIndex.toNumber(),
+      entryFixedIndex: a.account.entryFixedIndex.toNumber(),
+      openTs: a.account.openTs.toNumber(),
+    }));
+  }
+
+  /** Batch-decode multiple MarketState accounts in a single RPC. */
+  async fetchMarketsMulti(pdas: PublicKey[]): Promise<Array<MarketState | null>> {
+    if (pdas.length === 0) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accs = await (this.program.account as any).marketState.fetchMultiple(pdas);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return accs.map((acc: any) =>
+      acc
+        ? {
+            perpIndex: acc.perpIndex,
+            durationVariant: acc.durationVariant,
+            fixedRate: acc.fixedRate.toNumber(),
+            notionalPerLot: acc.notionalPerLot.toNumber(),
+            expiryTs: acc.expiryTs.toNumber(),
+            collateralMint: acc.collateralMint,
+            cumulativeActualIndex: acc.cumulativeActualIndex.toNumber(),
+            cumulativeFixedIndex: acc.cumulativeFixedIndex.toNumber(),
+            lastSettledTs: acc.lastSettledTs.toNumber(),
+            totalFixedPayerLots: acc.totalFixedPayerLots.toNumber(),
+            totalFixedReceiverLots: acc.totalFixedReceiverLots.toNumber(),
+            totalCollateral: acc.totalCollateral.toNumber(),
+            isActive: acc.isActive,
+          }
+        : null,
+    );
+  }
+
+  /** Batch-decode RateOracles for a set of perp indices in a single RPC. */
+  async fetchOraclesMulti(
+    perpIndices: number[],
+  ): Promise<Record<number, { emaFundingRate: number; numSamples: number } | null>> {
+    if (perpIndices.length === 0) return {};
+    const pdas = perpIndices.map((p) => oraclePda(p)[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accs = await (this.program.account as any).rateOracle.fetchMultiple(pdas);
+    const out: Record<number, { emaFundingRate: number; numSamples: number } | null> = {};
+    perpIndices.forEach((p, i) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const acc: any = accs[i];
+      out[p] = acc
+        ? { emaFundingRate: acc.emaFundingRate.toNumber(), numSamples: acc.numSamples.toNumber() }
+        : null;
+    });
+    return out;
+  }
+
   async fetchPosition(
     user: PublicKey,
     perpIndex: number,
