@@ -4,7 +4,7 @@
 
 > **Seoulana WarmUp Hackathon 2026** | **Colosseum 2026 — DeFi & Payments Track**
 
-Fundex is a fully on-chain fixed-for-floating interest rate swap (IRS) protocol that uses Drift Protocol's perpetual funding rates as the underlying. Traders take **Fixed Payer** or **Fixed Receiver** positions across 16 markets (4 perps × 4 durations), and a permissionless **LP Pool** acts as counterparty for any net imbalance between the two sides.
+Fundex is a fully on-chain fixed-for-floating interest rate swap (IRS) protocol that uses Solana's native perpetual funding rate as the underlying. Traders take **Fixed Payer** or **Fixed Receiver** positions across 16 markets (4 perps × 4 durations), and a permissionless **LP Pool** acts as counterparty for any net imbalance between the two sides.
 
 Built solo as a reference implementation of a Solana-native funding rate swap primitive — categorically similar to [Pendle Boros](https://docs.pendle.finance/Boros) (Arbitrum, 2025) — with on-chain rate verification, sub-200k CU settlements, and a fixed rate curve backed by 12 months of historical backtesting (SOL-PERP, BTC-PERP).
 
@@ -14,12 +14,12 @@ Built solo as a reference implementation of a Solana-native funding rate swap pr
 
 ## Scope & Prior Art
 
-Fundex is a **reference implementation**, not a production trading venue. Its purpose is to explore what a Solana-native, Drift-native, oracle-free funding rate swap actually looks like.
+Fundex is a **reference implementation**, not a production trading venue. Its purpose is to explore what a Solana-native, perp-native, oracle-free funding rate swap actually looks like.
 
 **Prior art.** [Pendle Boros](https://docs.pendle.finance/Boros) (Arbitrum, early 2025) is the first production funding rate swap in this category, using Binance as its rate source. Pendle has officially announced Solana expansion on its 2025 roadmap. Fundex does not claim category novelty — it is an independent implementation that makes different architectural choices from the Solana-native angle:
 
-- **On-chain rate source** — reads Drift `PerpMarket.lastFundingRate` directly, with program owner verification for trustlessness. No off-chain oracle or relay.
-- **Drift-native market mapping** — 1:1 mapping to Drift perps (BTC / ETH / SOL / JTO).
+- **On-chain rate source** — reads the perp market account's `lastFundingRate` directly, with program-owner verification for trustlessness. No off-chain oracle or relay.
+- **Perp-native market mapping** — 1:1 mapping to Solana perp markets (BTC / ETH / SOL / JTO).
 - **Per-market isolated vaults** — each market has its own USDC vault and LP pool. No cross-collateralization.
 - **AMM-style dynamic fees** — imbalance-reducing trades pay 0 bps; imbalance-increasing trades pay 30–100 bps on a continuous curve.
 
@@ -72,7 +72,7 @@ PnL per settlement (Fixed Payer) = (variable_rate − fixed_rate) × notional
          ▲
          │ live rates
 ┌────────┴────────┐
-│  Drift Protocol  │  (mainnet, read-only)
+│  On-chain Perp   │  (Solana perp program, read-only)
 │  lastFundingRate │
 └─────────────────┘
 ```
@@ -105,7 +105,7 @@ PnL per settlement (Fixed Payer) = (variable_rate − fixed_rate) × notional
 
 | Account | Seeds | Description |
 |---------|-------|-------------|
-| `RateOracle` | `[rate_oracle, perp_index]` | EMA of actual Drift funding rates |
+| `RateOracle` | `[rate_oracle, perp_index]` | EMA of on-chain perp funding rates |
 | `MarketState` | `[market, perp_index, duration]` | Per-market state, rates, OI |
 | `Position` | `[position, user, market]` | Per-user per-market position |
 | `Vault` | `[vault, market]` | Isolated USDC vault per market (user collateral) |
@@ -178,26 +178,26 @@ This creates a natural AMM mechanism: arbitrageurs earn zero-fee entry on the mi
 
 ## On-Chain Rate Verification
 
-Fundex reads funding rates **directly from Drift Protocol's PerpMarket accounts** on-chain — no trusted off-chain input.
+Fundex reads funding rates **directly from the on-chain perp market account** — no trusted off-chain input.
 
 ```
 settle_funding():
-  1. Verify drift_perp_market.owner == DRIFT_PROGRAM_ID
+  1. Verify perp_market.owner == EXPECTED_PERP_PROGRAM_ID
   2. Read lastFundingRate       (i64) at byte offset 480
      Read lastFundingOracleTwap (i64) at byte offset 968
   3. Convert (i128-safe):
        fundex_rate = lastFundingRate × 1_000 / lastFundingOracleTwap
-     (Drift stores lastFundingRate as quote-per-base in FUNDING_RATE_PRECISION
+     (lastFundingRate is stored as quote-per-base in FUNDING_RATE_PRECISION
       1e9, not as a rate — recovering a per-hour fraction requires dividing by
       the oracle TWAP; final scale lands in Fundex's 1e6/h precision.)
   4. Clamp to ±MAX_FIXED_RATE_ABS (±50% per hour)
 ```
 
-The crank passes the Drift PerpMarket PDA as an account — the program verifies ownership and reads the rate trustlessly. This removes the need for a trusted oracle or off-chain rate relay. See `docs/WHITEPAPER.md` §5 for the full derivation and §11 for the April 2026 postmortem on the original (incorrect) formula.
+The crank passes the perp market PDA as an account — the program verifies the account's owner and reads the rate trustlessly. This removes the need for a trusted oracle or off-chain rate relay. See `docs/WHITEPAPER.md` §5 for the full derivation and §11 for the April 2026 postmortem on the original (incorrect) formula.
 
-**Drift market mapping:**
+**Perp market mapping:**
 
-| Fundex perpIndex | Asset | Drift marketIndex | Devnet PDA |
+| Fundex perpIndex | Asset | Source marketIndex | Devnet PDA |
 |---|---|---|---|
 | 0 | BTC-PERP | 1 | `2UZMvVT…` |
 | 1 | ETH-PERP | 2 | `25Eax9W…` |
@@ -291,7 +291,7 @@ The assistant sees **live market context** (current variable/fixed rates, OI imb
 | On-chain | Anchor 0.32.1, Rust, Solana |
 | Frontend | Next.js 16, TypeScript, Tailwind CSS v4 |
 | Wallet | `@solana/wallet-adapter` |
-| Rate source | Drift Protocol v2 — read on-chain directly |
+| Rate source | Solana-native perp funding rate — read on-chain directly |
 | AI | Claude Haiku (Anthropic) + custom ML ensemble |
 | ML Training | Python, scikit-learn, Binance API |
 | USDC | Custom SPL mock mint (devnet) |
@@ -310,14 +310,14 @@ fundex/
 │   │   ├── withdraw_lp.rs
 │   │   └── sync_pool_pnl.rs
 │   ├── state.rs               # RateOracle, MarketState, Position, PoolState, LpPosition
-│   ├── constants.rs           # Margin bps, LP_FEE_BPS, DRIFT_PROGRAM_ID_BYTES, seeds
+│   ├── constants.rs           # Margin bps, LP_FEE_BPS, perp program ID, seeds
 │   └── errors.rs              # Custom error codes
 ├── tests/fundex.ts            # Integration tests
 ├── scripts/
 │   ├── setup-devnet.ts        # One-shot devnet bootstrap
 │   ├── init-pools.ts          # Initialize LP pools for all 16 markets
 │   ├── crank-devnet.ts        # Demo crank (mock rates, 1-min intervals)
-│   ├── crank.ts               # Production crank (live Drift rates)
+│   ├── crank.ts               # Production crank (live on-chain rates)
 │   ├── liquidator.ts          # Permissionless liquidator bot
 │   └── train-rate-model-v2.py # ML model training (Binance funding rates + purged walk-forward CV)
 ├── sdk/src/                   # TypeScript client SDK

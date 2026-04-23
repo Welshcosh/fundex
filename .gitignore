@@ -16,3 +16,12 @@ app/.env*.local
 **/id.json
 deploy-keypair.json
 data/binance-cache/
+
+# Internal / 대외비 — pitch prep, clinic notes, submission drafts, marketing
+# material. Kept local only — do not publish to public repo.
+docs/PITCH*.md
+docs/SUBMISSION*.md
+docs/DEMO_CHECKLIST.md
+docs/DEMO_VIDEO_SCRIPT*.md
+docs/INTRO_FOR_NON_CRYPTO.md
+viral/
