@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { MARKETS, DurationVariant, Side } from "@/lib/constants";
-import { USDC_MINT, DRIFT_PRICE_PRECISION, MAINT_MARGIN_BPS } from "@/lib/fundex/constants";
+import { DRIFT_PRICE_PRECISION, MAINT_MARGIN_BPS } from "@/lib/fundex/constants";
 import { PositionWithPnl } from "@/lib/fundex/client";
 import { useFundexClient } from "./useFundexClient";
 
@@ -74,11 +74,15 @@ export function usePositions(): PositionsState {
       const oracles = await client.fetchOraclesMulti(uniquePerpIndices);
 
       // 4) Assemble display rows (mirrors prior PnL math).
-      const ata = getAssociatedTokenAddressSync(USDC_MINT, publicKey);
       const results: OnchainPosition[] = [];
       for (const p of userPositions) {
         const market = marketByKey.get(p.market.toBase58());
         if (!market) continue;
+        // Derive ATA from THIS market's actual on-chain collateral mint, not
+        // the global USDC_MINT constant. Markets created across different
+        // USDC mock mints (e.g. after setup-devnet rotates the mint) would
+        // otherwise hit `ConstraintTokenMint` (Anchor 2014) at close time.
+        const ata = getAssociatedTokenAddressSync(market.collateralMint, publicKey);
         const marketMeta = MARKETS.find((mm) => mm.perpIndex === market.perpIndex);
         if (!marketMeta) continue;
         const duration = market.durationVariant as DurationVariant;

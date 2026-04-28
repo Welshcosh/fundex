@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
-import { PublicKey, Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { MarketInfo, DurationVariant } from "@/lib/constants";
 import { FUNDEX_PROGRAM_ID, NOTIONAL_PER_LOT_LAMPORTS } from "@/lib/fundex/constants";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -27,6 +27,14 @@ export interface OnchainMarketData {
   settlementCount: number;
   /** α: unix-seconds of the most recent settlement (drives elapsed_frac) */
   lastSettledTs: number;
+  /**
+   * The market's actual on-chain collateral mint. Use THIS — not the global
+   * USDC_MINT env constant — when deriving the user's ATA for open/close
+   * txs. Otherwise an env rotation (e.g. setup-devnet creating a fresh mock
+   * USDC mint) breaks the token::mint constraint at close time.
+   * `null` until the first successful fetch.
+   */
+  collateralMint: PublicKey | null;
   /** Whether on-chain data loaded successfully */
   live: boolean;
   loading: boolean;
@@ -60,6 +68,7 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
     skewK: 50_000,            // β default before live data arrives — matches DEFAULT_SKEW_K
     settlementCount: 0,
     lastSettledTs: 0,
+    collateralMint: null,
     live: false,
   });
   const [loading, setLoading] = useState(false);
@@ -94,10 +103,15 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
       const skewK: number = marketAcc.skewK?.toNumber?.() ?? 50_000;
       const settlementCount: number = marketAcc.settlementCount?.toNumber?.() ?? 0;
       const lastSettledTs: number = marketAcc.lastSettledTs?.toNumber?.() ?? 0;
+      const collateralMint: PublicKey | null = marketAcc.collateralMint instanceof PublicKey
+        ? marketAcc.collateralMint
+        : marketAcc.collateralMint
+          ? new PublicKey(marketAcc.collateralMint)
+          : null;
 
       setData({
         variableRate, fixedRate, oiUsd, payerLots, receiverLots,
-        skewK, settlementCount, lastSettledTs,
+        skewK, settlementCount, lastSettledTs, collateralMint,
         live: true,
       });
     } catch {

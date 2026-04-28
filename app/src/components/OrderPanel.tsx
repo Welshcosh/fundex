@@ -82,8 +82,10 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
     if (!client || !connected || insufficient || loading) return;
     setLoading(true);
     try {
+      // Prefer the market's actual on-chain mint over the env-derived
+      // USDC_MINT — survives mock-mint rotations from setup-devnet.
       const userTokenAccount = getAssociatedTokenAddressSync(
-        USDC_MINT,
+        onchainData.collateralMint ?? USDC_MINT,
         client.wallet
       );
       const sig = await client.openPosition(
