@@ -252,6 +252,7 @@ export class FundexClient {
     lots: number,
     userTokenAccount: PublicKey
   ): Promise<TransactionSignature> {
+    const [oracle] = oraclePda(perpIndex);  // α: needed for time-weighted entry pre-bias
     const [market] = marketPda(perpIndex, duration);
     const [position] = positionPda(this.wallet, market);
     const [vault] = vaultPda(market);
@@ -263,6 +264,7 @@ export class FundexClient {
       .accounts({
         user: this.wallet,
         market,
+        oracle,
         position,
         vault,
         poolVault: pv,
@@ -281,6 +283,9 @@ export class FundexClient {
     const [market] = marketPda(perpIndex, duration);
     const [position] = positionPda(this.wallet, market);
     const [vault] = vaultPda(market);
+    // β: pool / pool_vault counterparty for the locked-skew transfer at close
+    const [pool] = poolPda(market);
+    const [pv] = poolVaultPda(market);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.program.methods as any)
@@ -290,6 +295,8 @@ export class FundexClient {
         market,
         position,
         vault,
+        pool,
+        poolVault: pv,
         userTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
@@ -423,16 +430,19 @@ export class FundexClient {
     perpIndex: number,
     duration: DurationVariant,
     collateralMint: PublicKey,
-    fixedRateOverride?: number
+    fixedRateOverride?: number,
+    skewKOverride?: number,
   ): Promise<TransactionSignature> {
     const [oracle] = oraclePda(perpIndex);
     const [market] = marketPda(perpIndex, duration);
     const [vault] = vaultPda(market);
     const fixedRate = fixedRateOverride !== undefined ? new BN(fixedRateOverride) : null;
+    // β: skew_k_override — null falls back to DEFAULT_SKEW_K (50_000) on-chain
+    const skewK = skewKOverride !== undefined ? new BN(skewKOverride) : null;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.program.methods as any)
-      .initializeMarket(perpIndex, duration, fixedRate)
+      .initializeMarket(perpIndex, duration, fixedRate, skewK)
       .accounts({
         admin: this.wallet,
         oracle,

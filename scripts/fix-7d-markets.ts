@@ -124,7 +124,8 @@ async function main() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (program.methods as any)
-        .initializeMarket(p, DURATION, new anchor.BN(MOCK_RATES[p]))
+        // 4th arg = skew_k_override (null → DEFAULT_SKEW_K = 50_000)
+        .initializeMarket(p, DURATION, new anchor.BN(MOCK_RATES[p]), null)
         .accounts({
           admin,
           oracle,

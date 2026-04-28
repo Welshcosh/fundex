@@ -152,7 +152,8 @@ async function main() {
     // Initialize seed market (7D, fixed_rate override = mockRate)
     try {
       const sig = await (program.methods as any)
-        .initializeMarket(perp.index, 0, new BN(perp.mockRate))
+        // 4th arg = skew_k_override (null → DEFAULT_SKEW_K = 50_000)
+        .initializeMarket(perp.index, 0, new BN(perp.mockRate), null)
         .accounts({
           admin: admin.publicKey,
           oracle,
@@ -213,7 +214,8 @@ async function main() {
 
       try {
         const sig = await (program.methods as any)
-          .initializeMarket(perp.index, dur, new BN(perp.mockRate)) // use mockRate until oracle warms up
+          // 4th arg = skew_k_override (null → DEFAULT_SKEW_K = 50_000)
+          .initializeMarket(perp.index, dur, new BN(perp.mockRate), null) // use mockRate until oracle warms up
           .accounts({
             admin: admin.publicKey,
             oracle,
