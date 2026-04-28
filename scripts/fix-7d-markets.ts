@@ -15,7 +15,10 @@ import * as path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, "../app/.env.local") });
 
-const PROGRAM_ID = new PublicKey("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
+// Read program ID from the freshly-generated IDL so this script never
+// drifts from `anchor build` / declare_id! / Anchor.toml.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PROGRAM_ID = new PublicKey(require("../target/idl/fundex.json").address);
 const USDC_MINT  = new PublicKey(
   process.env.NEXT_PUBLIC_USDC_MINT ?? "H9Uy5y7DzqSqVkHVz3KJsT7RsGX4HkneXkToG3WBNYqR"
 );

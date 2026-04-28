@@ -12,7 +12,10 @@ import * as path from "path";
 import * as dotenv from "dotenv";
 dotenv.config({ path: path.resolve(__dirname, "../app/.env.local") });
 
-const PROGRAM_ID = new PublicKey("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
+// Read program ID from the freshly-generated IDL so this script never
+// drifts from `anchor build` / declare_id! / Anchor.toml.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PROGRAM_ID = new PublicKey(require("../target/idl/fundex.json").address);
 const NAMES = ["BTC", "ETH", "SOL", "JTO"];
 const DUR_LABELS = ["7D", "30D", "90D", "180D"];
 

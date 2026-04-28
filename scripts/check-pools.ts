@@ -4,7 +4,10 @@ import * as path from "path";
 import * as dotenv from "dotenv";
 dotenv.config({ path: path.resolve(__dirname, "../app/.env.local") });
 
-const PROGRAM_ID = new PublicKey("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
+// Read program ID from the freshly-generated IDL so this script never
+// drifts from `anchor build` / declare_id! / Anchor.toml.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PROGRAM_ID = new PublicKey(require("../target/idl/fundex.json").address);
 const rpc = process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com";
 const conn = new Connection(rpc, "confirmed");
 const USER = new PublicKey("BXrMyY4bQdqrFvHADfHYSEoAScBo3dKQifHMEE13G7Q5");
