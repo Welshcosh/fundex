@@ -38,4 +38,6 @@ pub enum FundexError {
     InvalidDriftAccount,
     #[msg("Market still has collateral — close all positions first")]
     MarketHasOpenPositions,
+    #[msg("skew_k override exceeds MAX_SKEW_K_ABS")]
+    SkewKOutOfBounds,
 }

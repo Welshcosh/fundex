@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/fundex.json`.
  */
 export type Fundex = {
-  "address": "BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb",
+  "address": "E7bxJfAT1quS1CLV1zWeVVnSD5m6oHLHequ5mgqgqMQa",
   "metadata": {
     "name": "fundex",
     "version": "0.1.0",
@@ -13,6 +13,58 @@ export type Fundex = {
     "description": "Funding Rate Swap Market on Solana"
   },
   "instructions": [
+    {
+      "name": "adminResetOracle",
+      "discriminator": [
+        134,
+        242,
+        113,
+        24,
+        208,
+        103,
+        68,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "oracle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.perp_index",
+                "account": "marketState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
     {
       "name": "closeMarket",
       "discriminator": [
@@ -171,7 +223,8 @@ export type Fundex = {
           "name": "market",
           "writable": true,
           "relations": [
-            "position"
+            "position",
+            "pool"
           ]
         },
         {
@@ -211,6 +264,59 @@ export type Fundex = {
               {
                 "kind": "const",
                 "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "docs": [
+            "β: pool state — receives or pays the position's locked skew premium at close"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "poolVault",
+          "docs": [
+            "β: pool vault — counterparty for the skew transfer"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
                   118,
                   97,
                   117,
@@ -464,6 +570,12 @@ export type Fundex = {
           "type": {
             "option": "i64"
           }
+        },
+        {
+          "name": "skewKOverride",
+          "type": {
+            "option": "i64"
+          }
         }
       ]
     },
@@ -634,7 +746,8 @@ export type Fundex = {
           "name": "market",
           "writable": true,
           "relations": [
-            "position"
+            "position",
+            "pool"
           ]
         },
         {
@@ -693,6 +806,59 @@ export type Fundex = {
           }
         },
         {
+          "name": "pool",
+          "docs": [
+            "β: pool state — receives or pays the position's locked skew premium at liquidation"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "poolVault",
+          "docs": [
+            "β: pool vault — counterparty for the skew transfer"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
           "name": "liquidatorTokenAccount",
           "writable": true
         },
@@ -724,6 +890,38 @@ export type Fundex = {
         {
           "name": "market",
           "writable": true
+        },
+        {
+          "name": "oracle",
+          "docs": [
+            "α: oracle is read (not mutated) so we can pre-bias entry_actual_index",
+            "by the EMA × elapsed_frac for the partial interval at open time."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.perp_index",
+                "account": "marketState"
+              }
+            ]
+          }
         },
         {
           "name": "position",
@@ -1357,6 +1555,11 @@ export type Fundex = {
       "code": 6017,
       "name": "marketHasOpenPositions",
       "msg": "Market still has collateral — close all positions first"
+    },
+    {
+      "code": 6018,
+      "name": "skewKOutOfBounds",
+      "msg": "skew_k override exceeds MAX_SKEW_K_ABS"
     }
   ],
   "types": [
@@ -1392,6 +1595,10 @@ export type Fundex = {
           {
             "name": "newOracleEma",
             "type": "i64"
+          },
+          {
+            "name": "newSettlementCount",
+            "type": "u64"
           },
           {
             "name": "slot",
@@ -1452,6 +1659,10 @@ export type Fundex = {
           {
             "name": "notionalPerLot",
             "type": "u64"
+          },
+          {
+            "name": "skewK",
+            "type": "i64"
           },
           {
             "name": "slot",
@@ -1528,6 +1739,14 @@ export type Fundex = {
           {
             "name": "vaultBump",
             "type": "u8"
+          },
+          {
+            "name": "skewK",
+            "type": "i64"
+          },
+          {
+            "name": "settlementCount",
+            "type": "u64"
           }
         ]
       }
@@ -1628,6 +1847,14 @@ export type Fundex = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "entrySkewPremium",
+            "type": "i64"
+          },
+          {
+            "name": "entrySettlementCount",
+            "type": "u64"
           }
         ]
       }
@@ -1666,6 +1893,10 @@ export type Fundex = {
             "type": "u64"
           },
           {
+            "name": "skewPoolPnl",
+            "type": "i64"
+          },
+          {
             "name": "slot",
             "type": "u64"
           }
@@ -1700,6 +1931,10 @@ export type Fundex = {
           {
             "name": "liquidatorReward",
             "type": "u64"
+          },
+          {
+            "name": "skewPoolPnl",
+            "type": "i64"
           },
           {
             "name": "slot",
@@ -1740,6 +1975,18 @@ export type Fundex = {
           {
             "name": "entryFixedIndex",
             "type": "i64"
+          },
+          {
+            "name": "elapsedFracE6",
+            "type": "i64"
+          },
+          {
+            "name": "entrySkewPremium",
+            "type": "i64"
+          },
+          {
+            "name": "entrySettlementCount",
+            "type": "u64"
           },
           {
             "name": "slot",

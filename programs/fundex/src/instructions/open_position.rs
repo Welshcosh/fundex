@@ -3,7 +3,7 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::FundexError;
 use crate::events::PositionOpened;
-use crate::state::{MarketState, Position};
+use crate::state::{MarketState, Position, RateOracle};
 
 pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
     require!(side <= 1, FundexError::InvalidSide);
@@ -11,9 +11,34 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
 
     let clock = Clock::get()?;
     let market = &mut ctx.accounts.market;
+    let oracle = &ctx.accounts.oracle;
 
     require!(market.is_active, FundexError::MarketInactive);
     require!(clock.unix_timestamp < market.expiry_ts, FundexError::MarketExpired);
+
+    // β: snapshot the skew premium NEW entrants see, BEFORE adding this trade's
+    // lots to the running totals. This is the rate the user is locking in.
+    let entry_skew_premium = market.current_skew_premium();
+    let entry_settlement_count = market.settlement_count;
+
+    // α: time-weighted entry pre-bias.
+    // We don't know the next settlement's actual_rate yet, so use the oracle
+    // EMA as the unbiased best estimate for the partial interval that already
+    // elapsed at open. The fixed leg is deterministic (market.fixed_rate).
+    //
+    //   elapsed = clamp(now − last_settled_ts, 0, FUNDING_INTERVAL)
+    //   frac_e6 = elapsed × 1e6 / FUNDING_INTERVAL
+    //   entry_actual_index += ema × frac_e6 / 1e6   (best-estimate)
+    //   entry_fixed_index  += fixed_rate × frac_e6 / 1e6  (exact)
+    //
+    // Net effect: at the next settlement, this position's Δactual/Δfixed only
+    // reflect the (1 − frac) tail of the interval, closing the "free funding"
+    // exploit where opening just before settlement collected a full interval.
+    let elapsed_raw = clock.unix_timestamp.saturating_sub(market.last_settled_ts);
+    let elapsed = elapsed_raw.clamp(0, FUNDING_INTERVAL);
+    let frac_e6: i64 = ((elapsed as i128).saturating_mul(1_000_000) / FUNDING_INTERVAL as i128) as i64;
+    let actual_partial = ((oracle.ema_funding_rate as i128).saturating_mul(frac_e6 as i128) / 1_000_000) as i64;
+    let fixed_partial = ((market.fixed_rate as i128).saturating_mul(frac_e6 as i128) / 1_000_000) as i64;
 
     // collateral = lots * notional_per_lot * INITIAL_MARGIN_BPS / 10_000
     let notional = (market.notional_per_lot as u128)
@@ -117,9 +142,17 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
     position.side = side;
     position.lots = lots;
     position.collateral_deposited = collateral;
-    position.entry_actual_index = market.cumulative_actual_index;
-    position.entry_fixed_index = market.cumulative_fixed_index;
+    // α pre-bias: shift entry indices forward by the elapsed-fraction of the
+    // current interval at the expected (oracle EMA) and exact (fixed_rate) rates.
+    position.entry_actual_index = market
+        .cumulative_actual_index
+        .saturating_add(actual_partial);
+    position.entry_fixed_index = market
+        .cumulative_fixed_index
+        .saturating_add(fixed_partial);
     position.open_ts = clock.unix_timestamp;
+    position.entry_skew_premium = entry_skew_premium;
+    position.entry_settlement_count = entry_settlement_count;
     position.bump = ctx.bumps.position;
 
     emit!(PositionOpened {
@@ -128,8 +161,11 @@ pub fn handler(ctx: Context<OpenPosition>, side: u8, lots: u64) -> Result<()> {
         side,
         lots,
         collateral_deposited: collateral,
-        entry_actual_index: market.cumulative_actual_index,
-        entry_fixed_index: market.cumulative_fixed_index,
+        entry_actual_index: position.entry_actual_index,
+        entry_fixed_index: position.entry_fixed_index,
+        elapsed_frac_e6: frac_e6,
+        entry_skew_premium,
+        entry_settlement_count,
         slot: clock.slot,
     });
 
@@ -147,6 +183,14 @@ pub struct OpenPosition<'info> {
         bump = market.bump,
     )]
     pub market: Account<'info, MarketState>,
+
+    /// α: oracle is read (not mutated) so we can pre-bias entry_actual_index
+    /// by the EMA × elapsed_frac for the partial interval at open time.
+    #[account(
+        seeds = [SEED_RATE_ORACLE, &market.perp_index.to_le_bytes()],
+        bump = oracle.bump,
+    )]
+    pub oracle: Account<'info, RateOracle>,
 
     #[account(
         init,

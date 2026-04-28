@@ -14,13 +14,41 @@ import { MARKETS, DurationVariant } from "@/lib/constants";
 import { useMarketData } from "@/hooks/useMarketData";
 import { formatRate } from "@/lib/utils";
 
-function ImbalanceWidget({ payerLots, receiverLots, live }: { payerLots: number; receiverLots: number; live: boolean }) {
+function ImbalanceWidget({
+  payerLots, receiverLots, skewK, lastSettledTs, live,
+}: {
+  payerLots: number; receiverLots: number; skewK: number; lastSettledTs: number; live: boolean;
+}) {
   const total = payerLots + receiverLots;
   const payerPct = total > 0 ? (payerLots / total) * 100 : 50;
   const netLots = Math.abs(payerLots - receiverLots);
   const imbalanceRatio = total > 0 ? Math.min(netLots * 10_000 / total, 10_000) : 0;
   const feeBps = 30 + Math.round(imbalanceRatio * 70 / 10_000);
   const isBalanced = Math.abs(payerPct - 50) < 8;
+
+  // β: signed skew premium quoted to a NEW position right now.
+  // Mirrors MarketState::current_skew_premium() in programs/fundex/src/state.rs.
+  // skewPremiumE6 is the rate adjustment in 1e6/h units; positive when payer-heavy.
+  const signedImbE6 = total > 0
+    ? Math.max(-1_000_000, Math.min(1_000_000, ((payerLots - receiverLots) * 1_000_000) / total))
+    : 0;
+  const skewPremiumE6 = (skewK * signedImbE6) / 1_000_000;
+  const skewPremiumPctPerHr = skewPremiumE6 / 10_000; // 1e6 unit = 100%/h → /10_000 = %/h
+  const skewMagBps = Math.abs(Math.round(skewPremiumE6 / 100)); // 1e6 = 10_000 bps/h
+
+  // α: time elapsed in current funding interval — used to surface that
+  // mid-interval opens accrue only the (1 - frac) tail of the next rate.
+  const FUNDING_INTERVAL = 3600;
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 5_000);
+    return () => clearInterval(id);
+  }, []);
+  const elapsed = lastSettledTs > 0
+    ? Math.max(0, Math.min(FUNDING_INTERVAL, nowSec - lastSettledTs))
+    : 0;
+  const fracE6 = lastSettledTs > 0 ? (elapsed * 1_000_000) / FUNDING_INTERVAL : 0;
+  const tailPct = 100 - (fracE6 / 10_000);
 
   return (
     <div className="px-4 py-3 text-xs" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: "#0a0918" }}>
@@ -58,9 +86,38 @@ function ImbalanceWidget({ payerLots, receiverLots, live }: { payerLots: number;
         </>
       ) : (
         <div className="font-mono text-[11px]" style={{ color: "#2d2b45" }}>
-          {live ? "Balanced" : "Loading…"}
+          {live ? "Balanced" : "Awaiting on-chain data"}
         </div>
       )}
+
+      {/* β: Skew premium quoted to new entrants. Both sides see the same biased rate;
+          heavy side pays more, light side receives more — pushes book toward balance. */}
+      <div className="mt-2 pt-2 flex items-center justify-between font-mono text-[10px]"
+        style={{ borderTop: "1px dashed rgba(255,255,255,0.04)" }}>
+        <span style={{ color: "#4a4568" }}>Skew premium (β)</span>
+        <span style={{
+          color: skewMagBps === 0 ? "#4a4568" : skewPremiumE6 > 0 ? "#fbbf24" : "#a78bfa",
+        }}>
+          {skewPremiumE6 === 0
+            ? "0.000%/h"
+            : `${skewPremiumPctPerHr >= 0 ? "+" : ""}${skewPremiumPctPerHr.toFixed(3)}%/h`}
+          {skewPremiumE6 !== 0 && (
+            <span style={{ color: "#4a4568", marginLeft: 6 }}>
+              ({skewPremiumE6 > 0 ? "payer-heavy" : "receiver-heavy"})
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* α: Time-weighted PnL — how much of the next interval this position earns. */}
+      <div className="mt-1 flex items-center justify-between font-mono text-[10px]">
+        <span style={{ color: "#4a4568" }}>Time-weighted PnL (α)</span>
+        <span style={{ color: lastSettledTs > 0 ? "#a7f3d0" : "#2d2b45" }}>
+          {lastSettledTs > 0
+            ? `next interval ~${tailPct.toFixed(0)}% (elapsed ${(elapsed / 60).toFixed(0)}m)`
+            : "—"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -114,6 +171,8 @@ function TradePageInner() {
               <ImbalanceWidget
                 payerLots={onchainData.payerLots}
                 receiverLots={onchainData.receiverLots}
+                skewK={onchainData.skewK}
+                lastSettledTs={onchainData.lastSettledTs}
                 live={onchainData.live}
               />
               <div className="md:overflow-auto">

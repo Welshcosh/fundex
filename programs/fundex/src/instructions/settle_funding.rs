@@ -87,6 +87,11 @@ pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
         .checked_add(fixed_rate_this_settlement)
         .ok_or(FundexError::MathOverflow)?;
     market.last_settled_ts = clock.unix_timestamp;
+    // β: positions opened at this count will see (count_now − entry_count)
+    // intervals of locked skew accrual.
+    market.settlement_count = market.settlement_count
+        .checked_add(1)
+        .ok_or(FundexError::MathOverflow)?;
 
     // ── Update oracle EMA ─────────────────────────────────────────────────────
     oracle.update_ema(actual_rate);
@@ -111,6 +116,7 @@ pub fn handler(ctx: Context<SettleFunding>) -> Result<()> {
         new_cumulative_actual_index: market.cumulative_actual_index,
         new_cumulative_fixed_index: market.cumulative_fixed_index,
         new_oracle_ema: oracle.ema_funding_rate,
+        new_settlement_count: market.settlement_count,
         slot: clock.slot,
     });
 

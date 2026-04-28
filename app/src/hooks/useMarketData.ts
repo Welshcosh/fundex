@@ -21,6 +21,12 @@ export interface OnchainMarketData {
   payerLots: number;
   /** Total fixed receiver lots open */
   receiverLots: number;
+  /** β: skew sensitivity coefficient (1e6/h) — see programs/fundex/src/constants.rs */
+  skewK: number;
+  /** β: number of settlements since market init (drives intervals_held) */
+  settlementCount: number;
+  /** α: unix-seconds of the most recent settlement (drives elapsed_frac) */
+  lastSettledTs: number;
   /** Whether on-chain data loaded successfully */
   live: boolean;
   loading: boolean;
@@ -51,6 +57,9 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
     oiUsd: 0,
     payerLots: 0,
     receiverLots: 0,
+    skewK: 50_000,            // β default before live data arrives — matches DEFAULT_SKEW_K
+    settlementCount: 0,
+    lastSettledTs: 0,
     live: false,
   });
   const [loading, setLoading] = useState(false);
@@ -80,8 +89,17 @@ export function useMarketData(market: MarketInfo, duration: DurationVariant): On
       const receiverLots: number = marketAcc.totalFixedReceiverLots.toNumber();
       const matchedLots = Math.min(payerLots, receiverLots);
       const oiUsd = (matchedLots * NOTIONAL_PER_LOT_LAMPORTS) / 1_000_000;
+      // β + α — fields added in v0.2 (E7bx... program). BN guards in case of
+      // partial decode against an older account snapshot during cutover.
+      const skewK: number = marketAcc.skewK?.toNumber?.() ?? 50_000;
+      const settlementCount: number = marketAcc.settlementCount?.toNumber?.() ?? 0;
+      const lastSettledTs: number = marketAcc.lastSettledTs?.toNumber?.() ?? 0;
 
-      setData({ variableRate, fixedRate, oiUsd, payerLots, receiverLots, live: true });
+      setData({
+        variableRate, fixedRate, oiUsd, payerLots, receiverLots,
+        skewK, settlementCount, lastSettledTs,
+        live: true,
+      });
     } catch {
       setData((prev) => ({ ...prev, live: false }));
     } finally {

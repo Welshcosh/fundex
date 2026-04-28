@@ -8,7 +8,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb");
+declare_id!("E7bxJfAT1quS1CLV1zWeVVnSD5m6oHLHequ5mgqgqMQa");
 
 #[program]
 pub mod fundex {
@@ -26,8 +26,15 @@ pub mod fundex {
         perp_index: u16,
         duration_variant: u8,
         fixed_rate_override: Option<i64>,
+        skew_k_override: Option<i64>,
     ) -> Result<()> {
-        instructions::initialize_market::handler(ctx, perp_index, duration_variant, fixed_rate_override)
+        instructions::initialize_market::handler(
+            ctx,
+            perp_index,
+            duration_variant,
+            fixed_rate_override,
+            skew_k_override,
+        )
     }
 
     pub fn open_position(

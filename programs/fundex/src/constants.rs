@@ -66,3 +66,19 @@ pub const MAX_FIXED_RATE_ABS: i64 = 500_000;
 //   At 0% imbalance: 0.3%  |  At 50% imbalance: ~0.65%  |  At 100% imbalance: 1.0%
 pub const LP_FEE_BPS: u64 = 30;             // 0.3% base
 pub const MAX_IMBALANCE_FEE_BPS: u64 = 70;  // 0.7% max premium → total max 1.0%
+
+// ─── Skew premium (β) ────────────────────────────────────────────────────────
+// Adjusts the quoted fixed rate at open based on signed imbalance, locked
+// per-position. 1e6/h precision (matches fixed_rate).
+//
+//   skew_premium_at_open = market.skew_k × (payer_lots − receiver_lots)
+//                                          ───────────────────────────────
+//                                            (payer_lots + receiver_lots)
+//
+// Positive when payer-heavy → quoted fixed rises for new entrants on both sides
+// (payers pay more, receivers receive more — pushing the market toward balance).
+//
+// Default 50_000 = 5%/h max premium at full one-sided imbalance.
+// MAX caps the admin-tunable value to prevent extreme quotes.
+pub const DEFAULT_SKEW_K: i64 = 50_000;
+pub const MAX_SKEW_K_ABS: i64 = 200_000;

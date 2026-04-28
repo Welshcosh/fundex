@@ -8,8 +8,9 @@ use crate::state::{MarketState, RateOracle};
 pub fn handler(
     ctx: Context<InitializeMarket>,
     perp_index: u16,
-    duration_variant: u8,          // 0=7d, 1=30d, 2=90d, 3=180d
+    duration_variant: u8,             // 0=7d, 1=30d, 2=90d, 3=180d
     fixed_rate_override: Option<i64>, // None → use oracle EMA (V2)
+    skew_k_override: Option<i64>,     // None → DEFAULT_SKEW_K
 ) -> Result<()> {
     let clock = Clock::get()?;
     let oracle = &ctx.accounts.oracle;
@@ -28,6 +29,15 @@ pub fn handler(
             );
             oracle.ema_funding_rate
         }
+    };
+
+    // β: skew sensitivity (admin-tunable, capped)
+    let skew_k = match skew_k_override {
+        Some(k) => {
+            require!(k.abs() <= MAX_SKEW_K_ABS, FundexError::SkewKOutOfBounds);
+            k
+        }
+        None => DEFAULT_SKEW_K,
     };
 
     let duration_secs = MarketState::duration_seconds(duration_variant)
@@ -50,6 +60,8 @@ pub fn handler(
     market.admin = ctx.accounts.admin.key();
     market.bump = ctx.bumps.market;
     market.vault_bump = ctx.bumps.vault;
+    market.skew_k = skew_k;
+    market.settlement_count = 0;
 
     emit!(MarketInitialized {
         market: market.key(),
@@ -58,6 +70,7 @@ pub fn handler(
         fixed_rate,
         expiry_ts: market.expiry_ts,
         notional_per_lot: market.notional_per_lot,
+        skew_k,
         slot: clock.slot,
     });
 

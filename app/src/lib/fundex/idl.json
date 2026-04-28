@@ -1,5 +1,5 @@
 {
-  "address": "BVyfQfmD6yCXqgqGQm6heYg85WYypqVxLnxb7MrGEKPb",
+  "address": "E7bxJfAT1quS1CLV1zWeVVnSD5m6oHLHequ5mgqgqMQa",
   "metadata": {
     "name": "fundex",
     "version": "0.1.0",
@@ -217,7 +217,8 @@
           "name": "market",
           "writable": true,
           "relations": [
-            "position"
+            "position",
+            "pool"
           ]
         },
         {
@@ -257,6 +258,59 @@
               {
                 "kind": "const",
                 "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "docs": [
+            "β: pool state — receives or pays the position's locked skew premium at close"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "docs": [
+            "β: pool vault — counterparty for the skew transfer"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
                   118,
                   97,
                   117,
@@ -510,6 +564,12 @@
           "type": {
             "option": "i64"
           }
+        },
+        {
+          "name": "skew_k_override",
+          "type": {
+            "option": "i64"
+          }
         }
       ]
     },
@@ -680,7 +740,8 @@
           "name": "market",
           "writable": true,
           "relations": [
-            "position"
+            "position",
+            "pool"
           ]
         },
         {
@@ -739,6 +800,59 @@
           }
         },
         {
+          "name": "pool",
+          "docs": [
+            "β: pool state — receives or pays the position's locked skew premium at liquidation"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "docs": [
+            "β: pool vault — counterparty for the skew transfer"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
           "name": "liquidator_token_account",
           "writable": true
         },
@@ -770,6 +884,38 @@
         {
           "name": "market",
           "writable": true
+        },
+        {
+          "name": "oracle",
+          "docs": [
+            "α: oracle is read (not mutated) so we can pre-bias entry_actual_index",
+            "by the EMA × elapsed_frac for the partial interval at open time."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.perp_index",
+                "account": "MarketState"
+              }
+            ]
+          }
         },
         {
           "name": "position",
@@ -1403,6 +1549,11 @@
       "code": 6017,
       "name": "MarketHasOpenPositions",
       "msg": "Market still has collateral — close all positions first"
+    },
+    {
+      "code": 6018,
+      "name": "SkewKOutOfBounds",
+      "msg": "skew_k override exceeds MAX_SKEW_K_ABS"
     }
   ],
   "types": [
@@ -1438,6 +1589,10 @@
           {
             "name": "new_oracle_ema",
             "type": "i64"
+          },
+          {
+            "name": "new_settlement_count",
+            "type": "u64"
           },
           {
             "name": "slot",
@@ -1498,6 +1653,10 @@
           {
             "name": "notional_per_lot",
             "type": "u64"
+          },
+          {
+            "name": "skew_k",
+            "type": "i64"
           },
           {
             "name": "slot",
@@ -1574,6 +1733,14 @@
           {
             "name": "vault_bump",
             "type": "u8"
+          },
+          {
+            "name": "skew_k",
+            "type": "i64"
+          },
+          {
+            "name": "settlement_count",
+            "type": "u64"
           }
         ]
       }
@@ -1674,6 +1841,14 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "entry_skew_premium",
+            "type": "i64"
+          },
+          {
+            "name": "entry_settlement_count",
+            "type": "u64"
           }
         ]
       }
@@ -1712,6 +1887,10 @@
             "type": "u64"
           },
           {
+            "name": "skew_pool_pnl",
+            "type": "i64"
+          },
+          {
             "name": "slot",
             "type": "u64"
           }
@@ -1746,6 +1925,10 @@
           {
             "name": "liquidator_reward",
             "type": "u64"
+          },
+          {
+            "name": "skew_pool_pnl",
+            "type": "i64"
           },
           {
             "name": "slot",
@@ -1786,6 +1969,18 @@
           {
             "name": "entry_fixed_index",
             "type": "i64"
+          },
+          {
+            "name": "elapsed_frac_e6",
+            "type": "i64"
+          },
+          {
+            "name": "entry_skew_premium",
+            "type": "i64"
+          },
+          {
+            "name": "entry_settlement_count",
+            "type": "u64"
           },
           {
             "name": "slot",
