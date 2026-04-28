@@ -28,10 +28,14 @@ function AISignalPreview() {
   const market = useMarketData(AI_DEFAULT_MARKET, AI_DEFAULT_DURATION);
   const [signal, setSignal] = useState<RateAdvisorOutput | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "error" | "done">("idle");
-  const oracle = market.variableRate;
+  // Use the live oracle EMA when available, otherwise fall back to the market's
+  // baseline rate so the landing card always has *something* sane to feed the
+  // advisor. EMA = 0 only happens right after a fresh program deploy before
+  // the crank has produced its first sample (~1h gap).
+  const oracle = market.variableRate > 0 ? market.variableRate : AI_DEFAULT_MARKET.baseRate;
 
   useEffect(() => {
-    if (!market.live || oracle <= 0) return;
+    if (oracle <= 0) return;
     let cancelled = false;
     setState("loading");
     (async () => {
@@ -56,7 +60,7 @@ function AISignalPreview() {
       }
     })();
     return () => { cancelled = true; };
-  }, [market.live, oracle]);
+  }, [oracle]);
 
   const dirColor =
     signal?.direction === "up" ? "#2dd4bf" :
