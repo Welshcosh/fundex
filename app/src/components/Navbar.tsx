@@ -8,6 +8,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Droplets, Menu, X } from "lucide-react";
 import { toast } from "./Toast";
 import { formatAddress } from "@/lib/utils";
+import { isDemoMode } from "@/lib/fundex/demo-mode";
 
 const WalletMultiButton = dynamic(
   () => import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton),
@@ -94,6 +95,13 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            {isDemoMode() && (
+              <span className="hidden md:inline text-xs px-2.5 py-1 rounded-full font-bold tracking-wide"
+                style={{ background: "rgba(251,146,60,0.15)", color: "#fdba74", border: "1px solid rgba(251,146,60,0.35)" }}
+                title="Priority fees + processed commitment + skipPreflight active">
+                DEMO
+              </span>
+            )}
             <span className="hidden md:inline text-xs px-2.5 py-1 rounded-full font-medium"
               style={{ background: "rgba(255,255,255,0.05)", color: "#6b6890" }}>
               devnet

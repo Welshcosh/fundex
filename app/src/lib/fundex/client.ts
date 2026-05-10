@@ -4,6 +4,7 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { DurationVariant, Side } from "@/lib/constants";
 import { FUNDEX_PROGRAM_ID, NOTIONAL_PER_LOT_LAMPORTS, INITIAL_MARGIN_BPS, DRIFT_PRICE_PRECISION } from "./constants";
 import { oraclePda, marketPda, vaultPda, positionPda, poolPda, poolVaultPda, lpPositionPda } from "./pda";
+import { getDemoPriorityIxs, getDemoSendOpts } from "./demo-mode";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const IDL = require("./idl.json");
 
@@ -272,7 +273,8 @@ export class FundexClient {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
+      .preInstructions(getDemoPriorityIxs())
+      .rpc(getDemoSendOpts());
   }
 
   async closePosition(
@@ -300,7 +302,8 @@ export class FundexClient {
         userTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
+      .preInstructions(getDemoPriorityIxs())
+      .rpc(getDemoSendOpts());
   }
 
   async fetchPool(perpIndex: number, duration: DurationVariant): Promise<PoolInfo | null> {
@@ -374,7 +377,8 @@ export class FundexClient {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
+      .preInstructions(getDemoPriorityIxs())
+      .rpc(getDemoSendOpts());
   }
 
   async withdrawLp(
@@ -400,7 +404,8 @@ export class FundexClient {
         userTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
+      .preInstructions(getDemoPriorityIxs())
+      .rpc(getDemoSendOpts());
   }
 
   async syncPoolPnl(
@@ -423,7 +428,8 @@ export class FundexClient {
         poolVault: pv,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
+      .preInstructions(getDemoPriorityIxs())
+      .rpc(getDemoSendOpts());
   }
 
   async initializeMarket(
@@ -453,6 +459,7 @@ export class FundexClient {
         systemProgram: SystemProgram.programId,
         rent: SYSVAR_RENT_PUBKEY,
       })
-      .rpc();
+      .preInstructions(getDemoPriorityIxs())
+      .rpc(getDemoSendOpts());
   }
 }
