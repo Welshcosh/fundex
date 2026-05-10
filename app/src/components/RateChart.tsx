@@ -1,10 +1,51 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MarketInfo, DurationVariant } from "@/lib/constants";
 import { OnchainMarketData } from "@/hooks/useMarketData";
-import { useRateHistory, RatePoint } from "@/hooks/useRateHistory";
+import { useRateHistory } from "@/hooks/useRateHistory";
 import { formatRate } from "@/lib/utils";
+import { isDemoMode } from "@/lib/fundex/demo-mode";
+import {
+  generateChartTick,
+  generateTimeframeSeries,
+  generateTimeframeCandles,
+  isLiveTimeframe,
+  TIMEFRAMES,
+  type Timeframe,
+  type DemoCandle,
+} from "@/lib/demo-fixtures";
+
+const DEMO_TICK_WINDOW = 80;
+
+const TF_SECONDS: Record<Timeframe, number> = {
+  "1s": 1, "15s": 15, "1m": 60, "5m": 300, "1h": 3600, "4h": 14400, "1d": 86400,
+};
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+function formatTimeLabel(ts: number, tf: Timeframe): string {
+  const d = new Date(ts * 1000);
+  if (tf === "1d") return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+  if (tf === "4h" || tf === "1h")
+    return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}h`;
+  if (tf === "5m" || tf === "1m") return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+function computeTimeLabels(candleCount: number, timeframe: Timeframe, count: number) {
+  const sec = TF_SECONDS[timeframe];
+  const now = Math.floor(Date.now() / 1000);
+  const out: { idx: number; text: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    const idx = Math.round((i / Math.max(count - 1, 1)) * Math.max(candleCount - 1, 1));
+    const ts = now - (candleCount - 1 - idx) * sec;
+    out.push({ idx, text: formatTimeLabel(ts, timeframe) });
+  }
+  return out;
+}
 
 type ChartType = "line" | "candles";
 
@@ -31,18 +72,6 @@ function generateMockLine(currentRate: number, points: number, seed: number): nu
   return out;
 }
 
-interface Candle { o: number; h: number; l: number; c: number }
-
-function toCandles(data: number[]): Candle[] {
-  const size = Math.max(1, Math.floor(data.length / 30));
-  const candles: Candle[] = [];
-  for (let i = 0; i < data.length; i += size) {
-    const slice = data.slice(i, i + size);
-    if (!slice.length) continue;
-    candles.push({ o: slice[0], h: Math.max(...slice), l: Math.min(...slice), c: slice[slice.length - 1] });
-  }
-  return candles;
-}
 
 // ─── SVG Charts ───────────────────────────────────────────────────────────────
 
@@ -109,34 +138,87 @@ function LineChart({
   );
 }
 
-function CandleChart({ candles, gradId }: { candles: Candle[]; gradId: string }) {
-  const W = 600; const H = 170; const pad = 8;
-  const allVals = candles.flatMap(c => [c.h, c.l]);
-  if (!allVals.length) return null;
-  const min = Math.min(...allVals);
-  const max = Math.max(...allVals);
-  const range = max - min || 1;
-  const toY = (v: number) => pad + (H - pad * 2) - ((v - min) / range) * (H - pad * 2);
-  const step = W / candles.length;
-  const candleW = step * 0.6;
+function CandleChart({
+  candles,
+  gradId,
+  timeframe,
+  mounted,
+}: {
+  candles: DemoCandle[];
+  gradId: string;
+  timeframe: Timeframe;
+  mounted: boolean;
+}) {
+  const W = 600;
+  const H = 200;
+  const PRICE_TOP = 4;
+  const PRICE_BOT = 130;
+  const VOL_TOP = 142;
+  const VOL_BOT = 184;
+  const TIME_Y = 196;
 
-  const closes = candles.map(c => c.c);
+  const allHL = candles.flatMap((c) => [c.h, c.l]);
+  if (!allHL.length) return null;
+  const min = Math.min(...allHL);
+  const max = Math.max(...allHL);
+  const range = max - min || 1;
+  const toY = (v: number) =>
+    PRICE_TOP + (PRICE_BOT - PRICE_TOP) - ((v - min) / range) * (PRICE_BOT - PRICE_TOP);
+
+  const maxVol = Math.max(...candles.map((c) => c.v), 1);
+  const toVolH = (v: number) => (v / maxVol) * (VOL_BOT - VOL_TOP);
+
+  const step = W / candles.length;
+  const candleW = Math.max(1, step * 0.65);
+
+  const closes = candles.map((c) => c.c);
   const maVals = sma(closes, Math.min(7, closes.length));
   const maPoints = maVals
-    .map((v, i) => v == null ? null : [step * i + step / 2, toY(v)] as [number, number])
+    .map((v, i) => (v == null ? null : ([step * i + step / 2, toY(v)] as [number, number])))
     .filter((v): v is [number, number] => v !== null);
-  const maPath = maPoints.length > 1
-    ? "M" + maPoints.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L")
-    : null;
+  const maPath =
+    maPoints.length > 1
+      ? "M" + maPoints.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L")
+      : null;
+
+  const gridLevels = [min, min + range / 3, min + (range * 2) / 3, max];
+  const timeLabels = mounted ? computeTimeLabels(candles.length, timeframe, 5) : [];
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.03)" />
+          <stop offset="0%" stopColor="rgba(255,255,255,0.02)" />
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
       </defs>
+
+      {/* Price grid */}
+      {gridLevels.map((p, i) => (
+        <g key={`grid-${i}`}>
+          <line
+            x1={0}
+            y1={toY(p)}
+            x2={W}
+            y2={toY(p)}
+            stroke="rgba(255,255,255,0.04)"
+            strokeWidth="0.5"
+            strokeDasharray="2,3"
+          />
+          <text
+            x={W - 2}
+            y={toY(p) - 1.5}
+            fill="#3a3856"
+            fontSize="7.5"
+            textAnchor="end"
+            fontFamily="ui-monospace, SFMono-Regular, monospace"
+          >
+            {formatRate(Math.round(p))}
+          </text>
+        </g>
+      ))}
+
+      {/* Candles */}
       {candles.map((c, i) => {
         const cx = step * i + step / 2;
         const bullish = c.c >= c.o;
@@ -145,16 +227,95 @@ function CandleChart({ candles, gradId }: { candles: Candle[]; gradId: string })
         const bodyBot = toY(Math.min(c.o, c.c));
         const bodyH = Math.max(1, bodyBot - bodyTop);
         return (
-          <g key={i}>
-            <line x1={cx} y1={toY(c.h)} x2={cx} y2={toY(c.l)} stroke={color} strokeWidth="0.8" opacity="0.7" />
-            <rect x={cx - candleW / 2} y={bodyTop} width={candleW} height={bodyH}
-              fill={bullish ? color : "transparent"} stroke={color} strokeWidth="0.8" opacity="0.85" />
+          <g key={`c-${i}`}>
+            <line
+              x1={cx}
+              y1={toY(c.h)}
+              x2={cx}
+              y2={toY(c.l)}
+              stroke={color}
+              strokeWidth="0.8"
+              opacity="0.85"
+            />
+            <rect
+              x={cx - candleW / 2}
+              y={bodyTop}
+              width={candleW}
+              height={bodyH}
+              fill={bullish ? color : "transparent"}
+              stroke={color}
+              strokeWidth="0.8"
+              opacity="0.9"
+            />
           </g>
         );
       })}
+
+      {/* MA overlay */}
       {maPath && (
-        <path d={maPath} fill="none" stroke="#fbbf24" strokeWidth="1.2" strokeDasharray="3,2" opacity="0.7" />
+        <path
+          d={maPath}
+          fill="none"
+          stroke="#fbbf24"
+          strokeWidth="1.2"
+          strokeDasharray="3,2"
+          opacity="0.7"
+        />
       )}
+
+      {/* Volume separator + label */}
+      <line
+        x1={0}
+        y1={VOL_TOP - 6}
+        x2={W}
+        y2={VOL_TOP - 6}
+        stroke="rgba(255,255,255,0.05)"
+        strokeWidth="0.5"
+      />
+      <text
+        x={2}
+        y={VOL_TOP - 1.5}
+        fill="#3a3856"
+        fontSize="7"
+        textAnchor="start"
+        fontFamily="ui-monospace, SFMono-Regular, monospace"
+      >
+        Vol
+      </text>
+
+      {/* Volume bars */}
+      {candles.map((c, i) => {
+        const cx = step * i + step / 2;
+        const bullish = c.c >= c.o;
+        const color = bullish ? "#2dd4bf" : "#f87171";
+        const h = toVolH(c.v);
+        return (
+          <rect
+            key={`v-${i}`}
+            x={cx - candleW / 2}
+            y={VOL_BOT - h}
+            width={candleW}
+            height={h}
+            fill={color}
+            opacity="0.4"
+          />
+        );
+      })}
+
+      {/* Time labels */}
+      {timeLabels.map((label, i) => (
+        <text
+          key={`t-${i}`}
+          x={(label.idx / Math.max(candles.length - 1, 1)) * W}
+          y={TIME_Y}
+          fill="#3a3856"
+          fontSize="7.5"
+          textAnchor={i === 0 ? "start" : i === timeLabels.length - 1 ? "end" : "middle"}
+          fontFamily="ui-monospace, SFMono-Regular, monospace"
+        >
+          {label.text}
+        </text>
+      ))}
     </svg>
   );
 }
@@ -171,24 +332,78 @@ export function RateChart({
   duration: DurationVariant;
 }) {
   const [chartType, setChartType] = useState<ChartType>("line");
+  const [timeframe, setTimeframe] = useState<Timeframe>("1s");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const { points, loading: histLoading } = useRateHistory(market.perpIndex, duration);
 
   const hasHistory = points.length >= 2;
   const currentRate = onchainData.variableRate;
+  const fixedRateNow = onchainData.fixedRate;
 
-  // Build chart data from on-chain history or mock fallback
+  // Live demo ticks — append to the right edge so the chart visibly "trades".
+  // ref pattern avoids restarting the timer every 60s when currentRate refreshes.
+  const [liveTicks, setLiveTicks] = useState<number[]>([]);
+  const currentRateRef = useRef(currentRate);
+  useEffect(() => { currentRateRef.current = currentRate; }, [currentRate]);
+
+  useEffect(() => { setLiveTicks([]); }, [market.perpIndex, duration]);
+
+  useEffect(() => {
+    if (!isDemoMode() || !onchainData.live) return;
+    let cancelled = false;
+    let counter = 0;
+    let timer = 0;
+    const tick = () => {
+      if (cancelled) return;
+      counter += 1;
+      setLiveTicks((prev) => {
+        const last = prev[prev.length - 1] ?? currentRateRef.current ?? 1000;
+        const next = generateChartTick(last, counter);
+        return [...prev, next].slice(-DEMO_TICK_WINDOW);
+      });
+      timer = window.setTimeout(tick, 1200 + Math.random() * 1500);
+    };
+    timer = window.setTimeout(tick, 1200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [onchainData.live, market.perpIndex, duration]);
+
+  // Build chart data:
+  //   • Live timeframes (1s/15s) → real on-chain history + appended demo ticks
+  //   • Higher timeframes        → deterministic mock series scaled to currentRate
   const { actualData, fixedData, candleData } = useMemo(() => {
-    if (hasHistory) {
-      const actualData = points.map(p => p.actualRate);
-      const fixedData = points.map(p => p.fixedRate);
-      const candleData = toCandles(actualData);
-      return { actualData, fixedData, candleData };
+    let actualData: number[];
+    let fixedData: number[];
+
+    if (isLiveTimeframe(timeframe)) {
+      if (hasHistory) {
+        actualData = points.map((p) => p.actualRate);
+        fixedData = points.map((p) => p.fixedRate);
+      } else {
+        const seed = currentRate * 31 + 60;
+        actualData = generateMockLine(currentRate, 60, seed);
+        fixedData = [];
+      }
+      if (liveTicks.length > 0) {
+        const lastFixed = fixedData[fixedData.length - 1];
+        actualData = [...actualData, ...liveTicks].slice(-DEMO_TICK_WINDOW);
+        if (lastFixed !== undefined) {
+          // Hold the latest fixed rate flat across the new ticks (fixed updates
+          // only at settlement, not at every tick — keeps the dashed line honest).
+          fixedData = [...fixedData, ...new Array(liveTicks.length).fill(lastFixed)].slice(-DEMO_TICK_WINDOW);
+        }
+      }
+    } else {
+      actualData = generateTimeframeSeries(market.symbol, timeframe, currentRate || 1000);
+      fixedData = fixedRateNow > 0 ? new Array(actualData.length).fill(fixedRateNow) : [];
     }
-    // Mock fallback
-    const seed = currentRate * 31 + 60;
-    const actualData = generateMockLine(currentRate, 60, seed);
-    return { actualData, fixedData: [] as number[], candleData: toCandles(actualData) };
-  }, [points, hasHistory, currentRate]);
+
+    // Candles are sourced from a dedicated OHLCV generator so wicks and volume
+    // are meaningful (using `toCandles(actualData)` would flatten wicks since
+    // adjacent closes in our line series are usually near-monotonic).
+    const candleData = generateTimeframeCandles(market.symbol, timeframe, currentRate || 1000);
+    return { actualData, fixedData, candleData };
+  }, [timeframe, points, hasHistory, currentRate, liveTicks, market.symbol, fixedRateNow]);
 
   const lastVal = actualData[actualData.length - 1] ?? currentRate;
   const prevVal = actualData[actualData.length - 2] ?? lastVal;
@@ -231,6 +446,28 @@ export function RateChart({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Timeframe selector — DEX classic */}
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg overflow-x-auto"
+            style={{ background: "rgba(255,255,255,0.03)" }}>
+            {TIMEFRAMES.map((tf) => {
+              const active = timeframe === tf;
+              const live = isLiveTimeframe(tf);
+              return (
+                <button key={tf} onClick={() => setTimeframe(tf)}
+                  className="px-2 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1"
+                  style={{
+                    background: active ? "rgba(45,212,191,0.18)" : "transparent",
+                    color: active ? "#2dd4bf" : "#4a4568",
+                  }}>
+                  {tf}
+                  {live && active && (
+                    <span className="w-1 h-1 rounded-full" style={{ background: "#2dd4bf" }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-center gap-0.5 p-0.5 rounded-lg"
             style={{ background: "rgba(255,255,255,0.03)" }}>
             {(["line", "candles"] as ChartType[]).map((t) => (
@@ -248,10 +485,10 @@ export function RateChart({
       </div>
 
       {/* Chart */}
-      <div style={{ height: "170px" }}>
+      <div style={{ height: chartType === "candles" ? "210px" : "170px" }}>
         {chartType === "line"
           ? <LineChart actual={actualData} fixed={fixedData} color={color} gradId={gradId} />
-          : <CandleChart candles={candleData} gradId={gradId} />}
+          : <CandleChart candles={candleData} gradId={gradId} timeframe={timeframe} mounted={mounted} />}
       </div>
     </div>
   );

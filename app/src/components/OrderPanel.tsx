@@ -126,7 +126,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
 
   return (
     <div className="flex flex-col h-full" style={{ background: "#0d0c1a" }}>
-      <div className="flex flex-col h-full p-4 gap-4">
+      <div className="flex flex-col h-full p-3 gap-3">
 
         {/* Side selector */}
         <div className="p-1 rounded-2xl grid grid-cols-2 gap-1"
@@ -136,7 +136,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
             const isP = s === Side.FixedPayer;
             return (
               <button key={s} onClick={() => setSide(s)}
-                className="py-2.5 rounded-xl text-sm font-semibold transition-all"
+                className="py-2 rounded-xl text-[12.5px] font-semibold transition-all"
                 style={{
                   background: active
                     ? isP
@@ -149,46 +149,39 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
                     : "1px solid transparent",
                 }}>
                 <div>{isP ? "Fixed Payer" : "Fixed Receiver"}</div>
-                <div className="text-[10px] font-normal mt-0.5" style={{ opacity: 0.65 }}>
-                  {isP ? "Long funding rate" : "Short funding rate"}
+                <div className="text-[9.5px] font-normal mt-0.5" style={{ opacity: 0.65 }}>
+                  {isP ? "Long funding" : "Short funding"}
                 </div>
               </button>
             );
           })}
         </div>
 
-        {/* Hint */}
-        <p className="text-xs leading-relaxed" style={{ color: "#4a4568" }}>
-          {isLong
-            ? "You pay a fixed rate and receive the variable funding rate. Profit when rates rise."
-            : "You receive a fixed rate and pay the variable rate. Hedge your perp position."}
-        </p>
-
         {/* Size */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs">
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[11px]">
             <span style={{ color: "#6b6890" }}>Size</span>
-            <span style={{ color: "#4a4568" }}>1 lot = $100 notional</span>
+            <span style={{ color: "#4a4568" }}>1 lot = $100</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl"
+          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-2xl"
             style={{ background: "rgba(255,255,255,0.04)" }}>
             <button onClick={() => setLots((v) => Math.max(1, v - 1))}
-              className="w-7 h-7 rounded-xl flex items-center justify-center text-base font-bold transition-colors"
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-base font-bold transition-colors"
               style={{ background: "rgba(255,255,255,0.06)", color: "#8b87a8" }}>−</button>
             <input type="number" value={lots} min={1} max={100}
               onChange={(e) => setLots(Math.max(1, Math.min(100, +e.target.value)))}
-              className="flex-1 text-center font-mono font-bold text-lg bg-transparent outline-none"
+              className="flex-1 text-center font-mono font-bold text-base bg-transparent outline-none"
               style={{ color: "#ede9fe" }} />
             <button onClick={() => setLots((v) => Math.min(100, v + 1))}
-              className="w-7 h-7 rounded-xl flex items-center justify-center text-base font-bold transition-colors"
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-base font-bold transition-colors"
               style={{ background: "rgba(255,255,255,0.06)", color: "#8b87a8" }}>+</button>
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-4 gap-1">
             {[1, 5, 10, 25].map((n) => (
               <button key={n} onClick={() => setLots(n)}
-                className="py-1.5 rounded-xl text-xs font-semibold transition-all"
+                className="py-1 rounded-lg text-[11px] font-semibold transition-all"
                 style={{
                   background: lots === n ? "rgba(153,69,255,0.15)" : "rgba(255,255,255,0.03)",
                   color: lots === n ? "#c4b5fd" : "#4a4568",
@@ -200,31 +193,40 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
           </div>
         </div>
 
-        {/* Summary */}
-        <div className="rounded-2xl p-4 space-y-2.5 text-xs"
+        {/* Summary — compact */}
+        <div className="rounded-2xl p-3 space-y-1.5 text-[11px]"
           style={{ background: "rgba(255,255,255,0.03)" }}>
-          {[
-            ["Notional", formatUSD(notional), "#8b87a8"],
-            ["Collateral (10%)", formatUSD(collateralUsd), "#8b87a8"],
-            [`AMM fee (${(dynamicFeeBps / 100).toFixed(1)}%)`, formatUSD(lpFeeUsd), increasesImbalance ? "#fbbf24" : "#4a4568"],
-            ["Fixed rate", `${formatRate(fixedRate)} / 1h`, "#6b6890", `${formatRateAnnualized(fixedRate)} APR`],
-            ["Variable rate", `${formatRate(variableRate)} / 1h`, variableRate >= 0 ? "#2dd4bf" : "#f87171", `${formatRateAnnualized(variableRate)} APR`],
-          ].map(([label, value, color, sub]) => (
-            <div key={label as string} className="flex items-start justify-between gap-2">
-              <span style={{ color: "#4a4568" }}>{label}</span>
-              <div className="flex flex-col items-end">
-                <span className="font-mono" style={{ color: color as string }}>{value}</span>
-                {sub && (
-                  <span className="font-mono text-[10px] mt-0.5" style={{ color: "#2d2b45" }}>{sub}</span>
-                )}
-              </div>
-            </div>
-          ))}
+          <div className="flex items-center justify-between">
+            <span style={{ color: "#4a4568" }}>Notional</span>
+            <span className="font-mono" style={{ color: "#8b87a8" }}>{formatUSD(notional)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span style={{ color: "#4a4568" }}>Collateral (10%)</span>
+            <span className="font-mono" style={{ color: "#8b87a8" }}>{formatUSD(collateralUsd)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span style={{ color: "#4a4568" }}>AMM fee {(dynamicFeeBps / 100).toFixed(1)}%</span>
+            <span className="font-mono" style={{ color: increasesImbalance ? "#fbbf24" : "#4a4568" }}>
+              {formatUSD(lpFeeUsd)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span style={{ color: "#4a4568" }}>Fixed / Variable</span>
+            <span className="font-mono" style={{ color: "#6b6890" }}>
+              {formatRate(fixedRate)} / <span style={{ color: variableRate >= 0 ? "#2dd4bf" : "#f87171" }}>{formatRate(variableRate)}</span>
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span style={{ color: "#4a4568" }}>APR</span>
+            <span className="font-mono text-[10px]" style={{ color: "#2d2b45" }}>
+              {formatRateAnnualized(fixedRate)} / {formatRateAnnualized(variableRate)}
+            </span>
+          </div>
 
           <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "2px 0" }} />
 
           <div className="flex items-center justify-between">
-            <span style={{ color: "#4a4568" }}>Est. PnL / settlement</span>
+            <span style={{ color: "#4a4568" }}>Est. PnL / settle</span>
             <span className="font-mono font-semibold"
               style={{ color: pnlPerSettlement >= 0 ? "#2dd4bf" : "#f87171" }}>
               {pnlPerSettlement >= 0 ? "+" : ""}{formatUSD(pnlPerSettlement)}
@@ -233,7 +235,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
 
           {toRuin !== null && (
             <div className="flex items-center justify-between">
-              <span style={{ color: "#4a4568" }}>Settlements to liq.</span>
+              <span style={{ color: "#4a4568" }}>Settle to liq.</span>
               <span className="font-mono" style={{ color: toRuin < 10 ? "#fbbf24" : "#4a4568" }}>
                 ~{toRuin}
               </span>
@@ -243,11 +245,11 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
 
         {/* Balance + Faucet */}
         {connected && (
-          <div className="flex items-center justify-between text-xs px-1">
-            <span style={{ color: "#4a4568" }}>Wallet balance</span>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between text-[11px] px-1">
+            <span style={{ color: "#4a4568" }}>Balance</span>
+            <div className="flex items-center gap-1.5">
               <span className="font-mono" style={{ color: insufficient ? "#f87171" : "#4a4568" }}>
-                ${balanceUsd.toFixed(2)} USDC
+                ${balanceUsd.toFixed(2)}
               </span>
               {balanceLamports === 0 && (
                 <button
@@ -260,7 +262,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
                     border: "1px solid rgba(153,69,255,0.2)",
                     cursor: faucetLoading ? "not-allowed" : "pointer",
                   }}>
-                  {faucetLoading ? "…" : "Get 1000 USDC"}
+                  {faucetLoading ? "…" : "+1000"}
                 </button>
               )}
             </div>
@@ -272,7 +274,7 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
         {/* CTA */}
         {connected ? (
           <button onClick={handleOpen} disabled={loading || insufficient}
-            className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all"
+            className="w-full py-3 rounded-2xl font-bold text-[13px] transition-all"
             style={{
               background: loading || insufficient
                 ? "rgba(255,255,255,0.05)"
@@ -289,18 +291,18 @@ export function OrderPanel({ market, duration, onchainData }: { market: MarketIn
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Confirming…
               </span>
-            ) : insufficient ? `Need ${formatUSD(shortfallUsd)} more USDC` : (
-              `Open ${isLong ? "Fixed Payer" : "Fixed Receiver"} · ${lots} lot${lots > 1 ? "s" : ""}`
+            ) : insufficient ? `Need ${formatUSD(shortfallUsd)} more` : (
+              `Open ${isLong ? "Payer" : "Receiver"} · ${lots} lot${lots > 1 ? "s" : ""}`
             )}
           </button>
         ) : (
-          <div className="w-full py-3.5 rounded-2xl text-sm text-center font-medium"
+          <div className="w-full py-3 rounded-2xl text-[13px] text-center font-medium"
             style={{ background: "rgba(255,255,255,0.04)", color: "#4a4568" }}>
-            Connect wallet to trade
+            Connect wallet
           </div>
         )}
 
-        <p className="text-center text-[11px]" style={{ color: "#2d2b45" }}>
+        <p className="text-center text-[10px]" style={{ color: "#2d2b45" }}>
           {DURATION_FULL_LABELS[duration]} · 10× leverage
         </p>
       </div>

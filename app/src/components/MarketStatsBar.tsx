@@ -2,7 +2,8 @@
 
 import { MarketInfo, DurationVariant, DURATION_FULL_LABELS } from "@/lib/constants";
 import { OnchainMarketData } from "@/hooks/useMarketData";
-import { formatRate, formatRateAnnualized } from "@/lib/utils";
+import { formatRate, formatRateAnnualized, formatUSD } from "@/lib/utils";
+import { getDemoVolume24h } from "@/lib/demo-fixtures";
 
 function daysLeft(expiryTs: number): string {
   if (!expiryTs) return "—";
@@ -36,6 +37,8 @@ export function MarketStatsBar({ market, duration, onchainData, expiryTs }: Prop
     ? 30 + Math.round(imbalanceRatio * 70 / 10_000)
     : 30 + Math.round(imbalanceRatio * 70 / 10_000);
 
+  const vol24h = getDemoVolume24h(market.symbol);
+
   const stats = [
     {
       label: "Spread",
@@ -61,6 +64,16 @@ export function MarketStatsBar({ market, duration, onchainData, expiryTs }: Prop
       sub: isBalanced ? "balanced market" : `${(Math.abs(payerPct - 50)).toFixed(0)}% imbalanced`,
       color: isBalanced ? "#4a4568" : "#fbbf24",
     },
+    ...(vol24h !== null
+      ? [
+          {
+            label: "24h Volume",
+            value: formatUSD(vol24h),
+            sub: `${market.symbol} all durations`,
+            color: "#8b87a8",
+          },
+        ]
+      : []),
   ];
 
   return (
