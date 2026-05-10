@@ -284,6 +284,63 @@ The assistant sees **live market context** (current variable/fixed rates, OI imb
 
 ---
 
+## Trade Interface (DEX-style)
+
+The trade page (`/trade`) is laid out like a familiar perpetual exchange — chart and AI banner take the main column, and a three-column right cluster holds the order book, recent trades, and order panel. Everything fits in one viewport at 1440px+ (no scrolling required during demo).
+
+### Layout
+
+```
+┌─ TradeHeader (market picker, duration tabs) ──────────────────────────┐
+├─ AI Rate Advisor banner (horizontal) — direction, confidence,         │
+│   recommended fixed rate, Claude one-line reasoning, OOS accuracy     │
+├──────────────────────────────────────────┬──────┬───────┬─────────────┤
+│  Rate Chart                              │ Book │ Trades│ Order Panel │
+│   • Line / Candles toggle                │      │       │   Side      │
+│   • Timeframes: 1s · 15s · 1m · 5m · 1h  │ asks │ live  │   Size      │
+│     · 4h · 1d                            │      │ feed  │   Summary   │
+│   • OHLCV candles + 4-level price grid   │ mid  │       │   Est. PnL  │
+│     + volume bars + time axis            │      │       │   [Open ▶]  │
+├──────────────────────────────────────────┤ bids │       │             │
+│  MarketStatsBar (Spread / Variable rate │      │       │             │
+│   / Fixed rate / AMM Fee / 24h Volume)   │      │       │             │
+├──────────────────────────────────────────┤      │       │             │
+│  Positions table                         │      │       │             │
+└──────────────────────────────────────────┴──────┴───────┴─────────────┘
+```
+
+### Chart timeframes
+
+Each timeframe renders a deterministic price series scaled so the last point exactly equals the live oracle rate (preserves the "chart end = current price" exchange convention). Live timeframes (`1s`, `15s`) append fresh ticks every 1.2–2.7 seconds.
+
+| Timeframe | Data source |
+|-----------|-------------|
+| `1s` · `15s` | On-chain `FundingSettled` events + appended live ticks |
+| `1m` · `5m` · `1h` · `4h` · `1d` | Deterministic log-walk seeded by `(symbol, timeframe)` |
+
+### Candle chart
+
+When `Candles` mode is on:
+- OHLCV bars with continuity (`open[i] = close[i-1]`)
+- Wicks proportional to timeframe volatility
+- Volume bars (bottom strip) — colored to match candle direction
+- 4-level price grid with right-aligned price labels
+- Time axis (5 labels, format adapts to timeframe — `HH:MM:SS` for sub-minute, `MM/DD` for daily)
+
+### Live mock data (demo only)
+
+When `NEXT_PUBLIC_DEMO_MODE=true`, three components animate independently:
+
+| Component | Cadence | What animates |
+|-----------|---------|---------------|
+| Recent Trades | 1.5–3.3s per row | New row fades in at top, rotates window of 18 trades |
+| Order book | 2.2–3.7s | Row sizes jitter (×0.55–1.55); rates stay anchored to `fixedRate` |
+| Chart live ticks | 1.2–2.7s | New point appended to right edge (1s/15s only) |
+
+All three use a deterministic PRNG seeded by `(market.symbol, …)` so the same market always shows the same opening backlog — stable across re-renders, fresh on market change.
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
@@ -414,6 +471,30 @@ yarn ts-node -P tsconfig.json scripts/init-pools.ts
 ```bash
 anchor test
 ```
+
+### 6. Demo Mode (priority fees + processed commitment)
+
+For demo recordings or fast user flows, set `NEXT_PUBLIC_DEMO_MODE=true` to activate three transaction speedups + visual liveness in one toggle:
+
+```bash
+# app/.env.local
+NEXT_PUBLIC_DEMO_MODE=true
+```
+
+| Knob | Off (default) | On (demo) |
+|------|---------------|-----------|
+| Priority fee | none | `setComputeUnitLimit(400_000)` + `setComputeUnitPrice(100_000 µlamports)` ≈ 0.00004 SOL per tx |
+| Wallet commitment | `confirmed` (~1.5s) | `processed` (~400ms) |
+| Preflight | `skipPreflight: false` | `skipPreflight: true` |
+| Visual indicator | hidden | orange `DEMO` badge in navbar |
+| Recent Trades stream | seed only | live every 1.5–3.3s |
+| Order book jitter | static | sizes jitter every 2.2–3.7s |
+| Chart live ticks | static | new tick every 1.2–2.7s on `1s`/`15s` |
+| 24h Volume cell | hidden | visible on `MarketStatsBar` |
+
+When the env var is unset, all knobs return their default values via simple null/empty-array guards — production never silently inherits demo-only relaxations. The orange `DEMO` badge in the navbar is the safety indicator.
+
+**Production deploy**: set `NEXT_PUBLIC_DEMO_MODE=true` in Vercel env (Production + Preview, `--no-sensitive` flag) so the deployed site picks it up at build time.
 
 ---
 
