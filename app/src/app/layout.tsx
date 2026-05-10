@@ -11,6 +11,23 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 export const metadata: Metadata = {
   title: "Fundex — Funding Rate Swap Market",
   description: "Trade funding rate swaps on Solana. Go long or short on perpetual funding rates.",
+  metadataBase: new URL("https://fundex-weld.vercel.app"),
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "Fundex — Funding Rate Swap Market",
+    description: "Trade funding rate swaps on Solana. Go long or short on perpetual funding rates.",
+    url: "https://fundex-weld.vercel.app",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fundex — Funding Rate Swap Market",
+    description: "Trade funding rate swaps on Solana. Go long or short on perpetual funding rates.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

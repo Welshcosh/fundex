@@ -69,8 +69,9 @@ export function Navbar() {
             <Link href="/" className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-xl flex items-center justify-center"
                 style={{ background: "linear-gradient(135deg, #9945ff, #43b4ca)" }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 1L13 10H1L7 1Z" fill="white" fillOpacity="0.9" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M 4 4 L 12 4 L 8 8 Z" fill="white" fillOpacity="0.97" />
+                  <path d="M 4 12 L 12 12 L 8 8 Z" fill="white" fillOpacity="0.97" />
                 </svg>
               </div>
               <span className="font-bold text-sm" style={{ color: "#ede9fe" }}>fundex</span>

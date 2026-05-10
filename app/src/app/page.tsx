@@ -378,6 +378,48 @@ export default function LandingPage() {
             Live on Solana Devnet
           </div>
 
+          {/* Brand lockup — V2 hourglass mark (with shadow) + wordmark */}
+          <svg
+            width="320"
+            height="90"
+            viewBox="0 0 780 220"
+            className="mb-8 max-w-[80vw] h-auto"
+            aria-label="Fundex"
+          >
+            <defs>
+              <linearGradient id="brand-hero" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#9945ff" />
+                <stop offset="50%" stopColor="#7b61ff" />
+                <stop offset="100%" stopColor="#43b4ca" />
+              </linearGradient>
+              <linearGradient id="innerLight-hero" x1="50%" y1="0%" x2="50%" y2="100%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.18" />
+                <stop offset="50%" stopColor="#ffffff" stopOpacity="0" />
+              </linearGradient>
+              <filter id="softShadow-hero" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="2.5" />
+                <feOffset dx="0" dy="2" />
+                <feComponentTransfer><feFuncA type="linear" slope="0.30" /></feComponentTransfer>
+                <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            <g transform="translate(30, 30)">
+              <rect width="160" height="160" rx="36" ry="36" fill="url(#brand-hero)" />
+              <rect width="160" height="160" rx="36" ry="36" fill="url(#innerLight-hero)" />
+              <path d="M 39 38 L 121 38 L 80 79 Z" fill="#ffffff" fillOpacity="0.97" filter="url(#softShadow-hero)" />
+              <path d="M 39 122 L 121 122 L 80 81 Z" fill="#ffffff" fillOpacity="0.97" filter="url(#softShadow-hero)" />
+            </g>
+            <text
+              x="220" y="110"
+              fontFamily="Inter, 'SF Pro Display', -apple-system, system-ui, sans-serif"
+              fontWeight="900"
+              fontSize="120"
+              letterSpacing="-5"
+              fill="#ede9fe"
+              dominantBaseline="central"
+            >fundex</text>
+          </svg>
+
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight mb-6"
             style={{ color: "#ede9fe", maxWidth: "760px" }}>
             Trade{" "}
@@ -522,8 +564,9 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-lg flex items-center justify-center"
               style={{ background: "linear-gradient(135deg,#9945ff,#43b4ca)" }}>
-              <svg width="9" height="9" viewBox="0 0 14 14" fill="none">
-                <path d="M7 1L13 10H1L7 1Z" fill="white" fillOpacity="0.9" />
+              <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+                <path d="M 4 4 L 12 4 L 8 8 Z" fill="white" fillOpacity="0.97" />
+                <path d="M 4 12 L 12 12 L 8 8 Z" fill="white" fillOpacity="0.97" />
               </svg>
             </div>
             <span className="text-xs font-bold" style={{ color: "#4a4568" }}>fundex</span>
